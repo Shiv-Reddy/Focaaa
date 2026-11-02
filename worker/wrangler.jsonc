@@ -1,0 +1,23 @@
+{
+  "name": "focaaa-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-28",
+  "workers_dev": true,
+  "vars": {
+    "FIREBASE_PROJECT_ID": "focaaa-dev",
+    "FIREBASE_PROJECT_NUMBER": "396039922086",
+    "FIREBASE_ANDROID_APP_ID": "1:396039922086:android:a357329ceb7312bc5aaf67",
+    "FIREBASE_RELEASE_ANDROID_APP_ID": "1:396039922086:android:29dfc889fdf3863a5aaf67"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "focaaa-relay",
+      "database_id": "5772f883-8b7c-4b32-a5a9-9a35bd18ab49",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 3 * * *"]
+  }
+}

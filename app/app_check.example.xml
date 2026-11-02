@@ -1,0 +1,4 @@
+<resources>
+    <!-- Copy to src/release/res/values/app_check.xml and use your own restricted site key. -->
+    <string name="app_check_site_key" translatable="false">YOUR_SITE_KEY</string>
+</resources>

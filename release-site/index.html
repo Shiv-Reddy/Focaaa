@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2f6f5">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <meta name="description" content="Focaaa is a focused timer and task list for Android. Download the signed early access APK.">
+  <title>Focaaa — Make time for what matters</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Focaaa home"><span class="brand-mark" aria-hidden="true"><span></span></span><span>focaaa<span class="brand-period">.</span></span></a>
+      <nav aria-label="Main navigation"><a href="#the-app">The app</a><a href="#install">Install</a><a href="privacy.html">Privacy</a></nav>
+    </header>
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="availability"><span class="availability-dot" aria-hidden="true"></span>Available for Android <span class="availability-divider" aria-hidden="true">/</span> {{RELEASE_STATUS}}</p>
+          <h1 id="hero-title">Make the next<br>25 minutes count.</h1>
+          <p class="intro">One timer. A short list. A quieter place to start the work that matters today.</p>
+          <div class="download-row">
+            <a class="download" href="{{APK_FILENAME}}" download><span class="download-icon" aria-hidden="true">↓</span><span>Download for Android</span></a>
+            <span class="download-meta">Version {{VERSION}}<br>{{APK_SIZE}} MiB · Android 8+</span>
+          </div>
+          <p class="preview-note">Direct APK download. Android may ask you to allow installation from your browser.</p>
+        </div>
+        <div class="focus-stage" id="the-app" aria-label="Illustration of Focaaa's focus timer and task list">
+          <div class="stage-top"><span>Focaaa / Today</span><span class="stage-date">A little at a time.</span></div>
+          <div class="focus-display">
+            <div class="focus-dial" aria-hidden="true"><div class="focus-dial-inner"><span class="dial-label">Focus session</span><strong>25:00</strong><span class="dial-state">Ready to begin</span></div></div>
+            <div class="focus-tasks"><span class="tasks-label">Next up</span><div class="focus-task"><span class="task-box" aria-hidden="true"></span><span>Write the first page</span></div><div class="focus-task"><span class="task-box" aria-hidden="true"></span><span>Take a short break</span></div></div>
+          </div>
+          <div class="stage-bottom"><span>01 / Focus</span><span>Time well spent starts here</span></div>
+        </div>
+      </section>
+      <section class="app-details" aria-labelledby="details-title">
+        <div class="details-intro"><p class="section-kicker">A simpler rhythm</p><h2 id="details-title">Find your next step.<br>Then stay with it.</h2></div>
+        <div class="details-list">
+          <div class="detail"><span class="detail-symbol" aria-hidden="true">◷</span><div><h3>Set a focus session</h3><p>Choose the time that works for you and get started without a crowded dashboard.</p></div></div>
+          <div class="detail"><span class="detail-symbol" aria-hidden="true">✓</span><div><h3>Keep tasks close</h3><p>Capture what needs doing and keep the next useful action in view.</p></div></div>
+          <div class="detail"><span class="detail-symbol" aria-hidden="true">↺</span><div><h3>Come back with clarity</h3><p>Return to a calm home screen when you are ready for the next session.</p></div></div>
+        </div>
+      </section>
+      <section class="install" id="install" aria-labelledby="install-title">
+        <div class="install-main"><p class="section-kicker">Direct download</p><h2 id="install-title">Install Focaaa</h2><p>Download the APK on your Android phone, open the file, and follow Android’s install prompt. This is an early access release, with updates available from this page.</p><a class="install-link" href="{{APK_FILENAME}}" download>Download version {{VERSION}} <span aria-hidden="true">↗</span></a></div>
+        <div class="install-proof"><span class="proof-label">Verify your download</span><p>Check the file against this SHA-256 value before installing.</p><code>{{SHA256}}</code><a href="SHA256SUMS.txt">Download checksum file</a></div>
+      </section>
+      <p class="honesty">Focaaa can reduce casual exposure of private activity, but Android can still show that the app is installed or used. Read the <a href="privacy.html">privacy notice</a> for details.</p>
+    </main>
+    <footer><span>© Focaaa · Version {{VERSION}}</span><div><a href="privacy.html">Privacy</a><a href="mailto:xlr8beast2h@gmail.com">Support</a></div></footer>
+  </div>
+</body>
+</html>

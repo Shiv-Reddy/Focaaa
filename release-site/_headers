@@ -1,0 +1,10 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'
+
+/*.apk
+  Content-Type: application/vnd.android.package-archive
+  Content-Disposition: attachment
+  Cache-Control: public, max-age=300

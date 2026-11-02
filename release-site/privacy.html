@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2f6f5">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>Privacy · Focaaa</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header"><a class="brand" href="/" aria-label="Focaaa home"><span class="brand-mark" aria-hidden="true"><span></span></span><span>focaaa<span class="brand-period">.</span></span></a><nav aria-label="Main navigation"><a href="/">Download</a></nav></header>
+    <main class="policy">
+      <p class="availability">Privacy notice · 2 November 2026</p>
+      <h1>How Focaaa handles your information</h1>
+      <p class="policy-intro">Focaaa is a focus timer and task list with an optional private conversation. Both people must choose to pair and verify a comparison code. This notice describes the current direct APK release.</p>
+
+      <h2>What stays on your phone</h2>
+      <p>Your tasks, PIN, contact names, message history, and conversation keys are stored locally. Focaaa uses Android Keystore and an encrypted local database to protect saved private conversations. Sent and downloaded photo or video files are kept as ciphertext in app-private storage. It does not automatically upload your message history or tasks. A history backup is created only when you choose to save one; the encrypted file can be opened with its separate recovery key. The backup includes message records but not photo or video files. Restored history is read only and cannot restore an active pair or missing media.</p>
+
+      <h2>What the online services handle</h2>
+      <p>Firebase Authentication creates an anonymous account identifier for this app installation. Firebase App Check checks app requests. Firebase Cloud Messaging supplies a device push token so the relay can send content-free delivery hints. Cloudflare Workers and D1 hold pairing records, device and anonymous account identifiers, push tokens, rate-limit records, encrypted message envelopes awaiting delivery, encrypted media chunks, and message delivery and read timestamps linked to envelope IDs. The relay does not receive message plaintext, media keys, file names, file types, local contact names, or your PIN. Push hints do not contain message text.</p>
+      <p>For each selected photo or video, Focaaa encrypts the bytes on the sending phone. The encrypted copy is uploaded to the relay in chunks. Its decryption key and file type travel only inside the existing encrypted conversation message. Photos are limited to 2 MiB and short MP4 videos to 10 MiB in this release. The receiving phone downloads and checks ciphertext before showing it in the private area.</p>
+      <p>Firebase, Google, and Cloudflare may process network and service-operation data under their own terms. Focaaa does not include an advertising SDK or an in-app analytics SDK in this release.</p>
+
+      <h2>Retention and deletion</h2>
+      <p>Invites expire after five minutes. Undelivered encrypted envelopes, delivery receipts, and encrypted relay media copies expire after seven days; delivered envelopes are removed when acknowledged. Expired invites, receipts, media, and rate-limit records are cleared by a daily relay job. Already downloaded encrypted media stays on a phone until its message or conversation is deleted. Unpairing revokes the active connection, deletes pending encrypted envelopes and relay media, and removes the active conversation, media, and keys from that phone. The other person can still have their own local history until they remove it. The relay deletes revoked and expired pair records after 30 days, once their delivery receipts are gone. Device registration records and push tokens remain while an installation is registered; revoking an installation clears its push token. Contact support about removal of remaining relay records.</p>
+
+      <h2>Notifications and limits</h2>
+      <p>When a private message arrives while neither its full chat nor its user-opened notification-panel chat is active, Focaaa can show a generic focus reminder. Its title and text contain no contact name, message text, or conversation details. It may reveal the time of activity to someone watching your notifications. If you explicitly open Focaaa’s expanded conversation notification, it can show the selected contact and messages after unlock, and Android identifies Focaaa as the notification source. That panel stays until you swipe it away. Lock-screen display depends on Android and phone settings; tested phones hid contact and message text. Focaaa reduces casual exposure, but it cannot make the app invisible or protect against every person with access to your phone.</p>
+
+      <h2>Your choices</h2>
+      <p>You can choose your private-entry timer, set a local PIN, unpair, remove a local contact, and export or restore encrypted read-only history. Contact <a href="mailto:xlr8beast2h@gmail.com">xlr8beast2h@gmail.com</a> for privacy questions or a request concerning relay records. Please do not email your PIN, invite code, recovery key, or message contents.</p>
+    </main>
+    <footer><span>Focaaa</span><div><a href="/">Download</a><a href="mailto:xlr8beast2h@gmail.com">Support</a></div></footer>
+  </div>
+</body>
+</html>
