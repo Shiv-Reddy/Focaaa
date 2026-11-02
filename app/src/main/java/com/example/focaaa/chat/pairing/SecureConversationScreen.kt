@@ -243,9 +243,9 @@ fun SecureConversationScreen(
             busy = true
             status = null
             try {
-                val sentToRelay = sendMessage(outgoing)
+                val savedLocally = sendMessage(outgoing)
                 draft = ""
-                status = if (sentToRelay) null else "Saved on this phone. Delivery could not be confirmed."
+                status = if (savedLocally) null else "Saved on this phone. Delivery could not be confirmed."
             } catch (ended: PairEndedException) {
                 connectionEnded = true
                 draft = ""

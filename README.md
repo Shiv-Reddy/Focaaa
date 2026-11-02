@@ -16,9 +16,9 @@ Photos are limited to 2 MiB and MP4 videos to 10 MiB. Encrypted relay media copi
 
 ## Current release
 
-Version **1.4** (version code 5) is an early-access direct APK. The signed app and download page share a teal and mist visual theme. The download page provides the APK checksum. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
+Version **1.5** (version code 6) is an early-access direct APK. The signed app and download page share a teal and mist visual theme. The download page provides the APK checksum. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
 
-The Android unit suite, release lint, signed APK build, signature and package checks passed. The public APK was downloaded and matched its local SHA-256. Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. **The exact 1.4 visual update still needs a final check on both phones.** The release signing key and password also need separate offline backups. This project has not received an independent security audit.
+The Android unit suite, release lint, signed APK build, and backend tests passed. The exact 1.5 build was installed over the existing Samsung release app without clearing data; repeated sends released the composer and chat kept refreshing. Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. **The exact 1.5 build still needs a two-phone delivery check.** The release signing key and password also need separate offline backups. This project has not received an independent security audit.
 
 ## Project layout
 
@@ -30,8 +30,9 @@ The Android unit suite, release lint, signed APK build, signature and package ch
 | [`release-site/`](release-site/) | Static direct-download and privacy pages |
 | [`scripts/`](scripts/) | Local release build, staging and key-backup checks |
 | [`docs/history-backup.md`](docs/history-backup.md) | Backup and restore behavior |
+| [`docs/data-storage-and-encryption.md`](docs/data-storage-and-encryption.md) | Local database, relay storage, encryption boundaries, and retention |
 
-Firebase supplies anonymous authentication, App Check and content-free FCM delivery hints. Cloudflare Workers and D1 handle pairing records and encrypted delivery. The relay does not receive message plaintext or media keys. See the [privacy notice](https://focaaa-download.focaaa-free-relay.workers.dev/privacy.html) for retention and platform limits.
+Firebase supplies anonymous authentication, App Check and content-free FCM delivery hints. Cloudflare Workers and D1 handle pairing records and encrypted delivery. The relay does not receive message plaintext or media keys. See [data storage and encryption](docs/data-storage-and-encryption.md) and the [privacy notice](https://focaaa-download.focaaa-free-relay.workers.dev/privacy.html) for boundaries and retention.
 
 ## Build locally
 

@@ -35,6 +35,9 @@ import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class PendingPairingRemoteRevocationFailed(cause: Throwable) : IllegalStateException(
     "The relay could not cancel this pending pairing. Review the local removal option below.", cause
@@ -142,35 +145,38 @@ class PairingFlowCoordinator(
         session
     }
 
-    /** Encrypts and durably queues a chat message before attempting relay delivery. */
-    suspend fun sendMessage(text: String): Boolean = mutex.withLock {
-        val session = requireCurrentSession()
-        check(RelayServiceGeneration.isCurrent(appContext, requireNotNull(session.conversationId))) {
-            "This saved chat used the local test service. Create a new invite to reconnect; its history stays on this phone."
-        }
-        check(session.stage == PairingStage.ACTIVE && session.relayActive) {
-            "Both partners must finish pairing verification before sending messages."
-        }
-        val clean = text.trim()
-        require(clean.isNotEmpty()) { "Enter a message first." }
-        require(!clean.startsWith(MediaMessageCodec.PREFIX) ||
-            runCatching { MediaMessageCodec.decode(clean) }.getOrNull() != null) {
-            "Invalid private media message."
-        }
-        val bytes = clean.toByteArray(Charsets.UTF_8)
-        try {
-            cryptoProvider.encrypt(CryptoGroupHandle(requireNotNull(session.conversationId)), bytes)
-            try {
-                sync(requireNotNull(session.conversationId))
-                true
-            } catch (ended: PairEndedException) {
-                throw ended
-            } catch (_: Exception) {
-                false
-            }
-        } finally {
-            bytes.fill(0)
-        }
+    /** Returns true after a durable local queue commit, not after relay acceptance. */
+    suspend fun sendMessage(text: String): Boolean {
+        var queuedConversationId: String? = null
+        queuedChatDelivery.enqueue(
+            save = {
+                mutex.withLock {
+                    val session = requireCurrentSession()
+                    val conversationId = requireNotNull(session.conversationId)
+                    check(RelayServiceGeneration.isCurrent(appContext, conversationId)) {
+                        "This saved chat used the local test service. Create a new invite to reconnect; its history stays on this phone."
+                    }
+                    check(session.stage == PairingStage.ACTIVE && session.relayActive) {
+                        "Both partners must finish pairing verification before sending messages."
+                    }
+                    val clean = text.trim()
+                    require(clean.isNotEmpty()) { "Enter a message first." }
+                    require(!clean.startsWith(MediaMessageCodec.PREFIX) ||
+                        runCatching { MediaMessageCodec.decode(clean) }.getOrNull() != null) {
+                        "Invalid private media message."
+                    }
+                    val bytes = clean.toByteArray(Charsets.UTF_8)
+                    try {
+                        cryptoProvider.encrypt(CryptoGroupHandle(conversationId), bytes)
+                        queuedConversationId = conversationId
+                    } finally {
+                        bytes.fill(0)
+                    }
+                }
+            },
+            deliver = { syncActiveConversation(requireNotNull(queuedConversationId)) }
+        )
+        return true
     }
 
     /** Upload authenticated ciphertext first; only a completed upload gets an MLS message. */
@@ -261,7 +267,7 @@ class PairingFlowCoordinator(
         .digest(bytes).joinToString("") { "%02x".format(it) }
 
     /** Reconcile an open, verified conversation without repeating relay membership confirmation. */
-    suspend fun syncActiveConversation(conversationId: String) = mutex.withLock {
+    suspend fun syncActiveConversation(conversationId: String) = boundedChatSync(CHAT_SYNC_TIMEOUT_MILLIS) { mutex.withLock {
         val session = requireCurrentSession()
         check(RelayServiceGeneration.isCurrent(appContext, conversationId)) {
             "This saved chat used the local test service. Create a new invite to reconnect."
@@ -270,10 +276,10 @@ class PairingFlowCoordinator(
             "This private conversation is not active."
         }
         sync(conversationId)
-    }
+    } }
 
     /** Called only while the full conversation is resumed, after durable inbound reconciliation. */
-    suspend fun reportVisibleReads(conversationId: String) = mutex.withLock {
+    suspend fun reportVisibleReads(conversationId: String) = boundedChatSync(CHAT_SYNC_TIMEOUT_MILLIS) { mutex.withLock {
         if (VisibleChatTracker.shouldAlert(conversationId)) return@withLock
         requireActiveContact(conversationId)
         val ids = repository.unreportedInboundIds(conversationId)
@@ -287,7 +293,7 @@ class PairingFlowCoordinator(
             require(id in ids) { "The relay returned a read ID that was not requested." }
             repository.markInboundReadReported(conversationId, id)
         }
-    }
+    } }
 
     /** Revokes one active relay membership before removing this phone's local conversation state. */
     suspend fun unpair(conversationId: String) = mutex.withLock {
@@ -612,6 +618,9 @@ class PairingFlowCoordinator(
     private companion object {
         val serialPairingOperations = Mutex()
         val serialMediaOperations = Mutex()
+        val deliveryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val queuedChatDelivery = QueuedChatDelivery(deliveryScope)
+        const val CHAT_SYNC_TIMEOUT_MILLIS = 15_000L
         const val INVITE_TTL_MILLIS = 5 * 60 * 1000L
     }
 }

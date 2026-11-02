@@ -173,9 +173,9 @@ internal object ChatSessionNotification {
                     return@launch
                 }
                 val status = try {
-                    val delivered = PairingFlowCoordinator(context, repository, sessionId = contact.conversationId)
+                    val savedLocally = PairingFlowCoordinator(context, repository, sessionId = contact.conversationId)
                         .sendMessage(reply)
-                    if (delivered) null else "Saved on this phone. Delivery unconfirmed."
+                    if (savedLocally) null else "Saved on this phone. Delivery unconfirmed."
                 } catch (_: Exception) {
                     "Reply could not be saved."
                 }
