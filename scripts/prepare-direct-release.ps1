@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory = $true)][string]$LegacyApkPath,
     [Parameter(Mandatory = $true)][string]$SupersededApkPath,
     [Parameter(Mandatory = $true)][string]$PriorPatchApkPath,
+    [Parameter(Mandatory = $true)][string]$PreviousOnlineApkPath,
     [Parameter(Mandatory = $true)][string]$ExpectedFirebaseAppId,
     [Parameter(Mandatory = $true)][string]$AppCheckKeyMetadataPath,
     [switch]$DeviceTested,
@@ -174,6 +175,23 @@ $priorPatchCertificate = ($priorPatchSignature | Select-String 'certificate SHA-
 Assert-That ($null -ne $priorPatchCertificate -and $priorPatchCertificate.Matches[0].Groups[1].Value.ToLowerInvariant() -eq $certificateSha) 'The archived 1.8.1 APK uses a different release key.'
 Assert-That ((Get-Item -LiteralPath $priorPatchApk).Length -le 25MB) 'The archived 1.8.1 APK exceeds Cloudflare Free static assets 25 MiB file limit.'
 
+$previousOnlineApk = (Resolve-Path -LiteralPath $PreviousOnlineApkPath).Path
+$previousOnlineHash = (Get-FileHash -LiteralPath $previousOnlineApk -Algorithm SHA256).Hash.ToLowerInvariant()
+Assert-That ($previousOnlineHash -eq '97d3c876569bc385ee604ff999889180e999b0ee84c8c0b32461dcb59e6a5d1c') 'The previous online APK is not the exact published 1.8.2 binary.'
+$previousOnlineBadging = @(& $aapt dump badging $previousOnlineApk 2>&1)
+Assert-That ($LASTEXITCODE -eq 0) 'Could not inspect the previous online APK.'
+$previousOnlinePackage = ($previousOnlineBadging | Where-Object { $_ -match '^package:' } | Select-Object -First 1)
+Assert-That ($previousOnlinePackage -match "name='com.focaaa.app' versionCode='11' versionName='1.8.2'") 'The previous online APK is not Focaaa 1.8.2.'
+$previousErrorPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $previousOnlineSignature = @(& $signer verify --verbose --print-certs $previousOnlineApk 2>&1)
+} finally { $ErrorActionPreference = $previousErrorPreference }
+Assert-That ($LASTEXITCODE -eq 0) 'The previous online APK signature did not verify.'
+$previousOnlineCertificate = ($previousOnlineSignature | Select-String 'certificate SHA-256 digest: ([a-fA-F0-9]{64})' | Select-Object -First 1)
+Assert-That ($null -ne $previousOnlineCertificate -and $previousOnlineCertificate.Matches[0].Groups[1].Value.ToLowerInvariant() -eq $certificateSha) 'The previous online APK uses a different release key.'
+Assert-That ((Get-Item -LiteralPath $previousOnlineApk).Length -le 25MB) 'The previous online APK exceeds Cloudflare Free static assets 25 MiB file limit.'
+
 $hash = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant()
 $apkName = "focaaa-$versionName.apk"
 $stage = Join-Path $OutputRoot "v$versionCode-$hash"
@@ -193,6 +211,9 @@ Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $supersededApkName) -
 $priorPatchApkName = 'focaaa-1.8.1.apk'
 Copy-Item -LiteralPath $priorPatchApk -Destination (Join-Path $stage $priorPatchApkName)
 Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $priorPatchApkName) -Algorithm SHA256).Hash.ToLowerInvariant()) -eq $priorPatchHash) 'The staged 1.8.1 APK differs from the published input.'
+$previousOnlineApkName = 'focaaa-1.8.2.apk'
+Copy-Item -LiteralPath $previousOnlineApk -Destination (Join-Path $stage $previousOnlineApkName)
+Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $previousOnlineApkName) -Algorithm SHA256).Hash.ToLowerInvariant()) -eq $previousOnlineHash) 'The staged 1.8.2 APK differs from the published input.'
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 $source = Join-Path $PSScriptRoot '..\release-site'
 $page = [System.IO.File]::ReadAllText((Join-Path $source 'index.html'))
@@ -207,7 +228,10 @@ $page = $page.Replace('{{VERSION}}', $versionName).Replace('{{APK_FILENAME}}', $
     Replace('{{LEGACY_APK_SIZE}}', ($legacySize / 1MB).ToString('0.0', [cultureinfo]::InvariantCulture)).
     Replace('{{LEGACY_SHA256}}', $legacyHash).
     Replace('{{SUPERSEDED_APK_FILENAME}}', $supersededApkName).
-    Replace('{{PRIOR_PATCH_APK_FILENAME}}', $priorPatchApkName)
+    Replace('{{PRIOR_PATCH_APK_FILENAME}}', $priorPatchApkName).
+    Replace('{{PREVIOUS_ONLINE_APK_FILENAME}}', $previousOnlineApkName).
+    Replace('{{PREVIOUS_ONLINE_APK_SIZE}}', ((Get-Item -LiteralPath $previousOnlineApk).Length / 1MB).ToString('0.0', [cultureinfo]::InvariantCulture)).
+    Replace('{{PREVIOUS_ONLINE_SHA256}}', $previousOnlineHash)
 Assert-That (-not ($page -match '\{\{[A-Z_]+\}\}')) 'The download page has an unfilled release placeholder.'
 [System.IO.File]::WriteAllText((Join-Path $stage 'index.html'), $page, $utf8)
 Copy-Item -LiteralPath (Join-Path $source 'privacy.html') -Destination $stage
@@ -217,8 +241,8 @@ Copy-Item -LiteralPath (Join-Path $source 'favicon.svg') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source '_headers') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source 'wrangler.jsonc') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source '.assetsignore') -Destination $stage
-[System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), "$hash  $apkName`n$priorPatchHash  $priorPatchApkName`n$supersededHash  $supersededApkName`n$legacyHash  $legacyApkName`n$previousHash  $previousApkName`n", $utf8)
-$manifest = [ordered]@{ packageName = $packageName; versionCode = $versionCode; versionName = $versionName; apk = $apkName; sha256 = $hash; priorPatchApk = $priorPatchApkName; priorPatchSha256 = $priorPatchHash; supersededApk = $supersededApkName; supersededSha256 = $supersededHash; legacyApk = $legacyApkName; legacySha256 = $legacyHash; previousApk = $previousApkName; previousSha256 = $previousHash; certificateSha256 = $certificateSha; firebaseAppId = $firebaseAppId; appCheckProvider = 'recaptchaEnterprise'; appCheckDirectDistribution = $true; relayUrl = $relayUrl; earlyAccess = $EarlyAccess.IsPresent; deviceTested = $DeviceTested.IsPresent }
+[System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), "$hash  $apkName`n$previousOnlineHash  $previousOnlineApkName`n$priorPatchHash  $priorPatchApkName`n$supersededHash  $supersededApkName`n$legacyHash  $legacyApkName`n$previousHash  $previousApkName`n", $utf8)
+$manifest = [ordered]@{ packageName = $packageName; versionCode = $versionCode; versionName = $versionName; apk = $apkName; sha256 = $hash; previousOnlineApk = $previousOnlineApkName; previousOnlineSha256 = $previousOnlineHash; priorPatchApk = $priorPatchApkName; priorPatchSha256 = $priorPatchHash; supersededApk = $supersededApkName; supersededSha256 = $supersededHash; legacyApk = $legacyApkName; legacySha256 = $legacyHash; previousApk = $previousApkName; previousSha256 = $previousHash; certificateSha256 = $certificateSha; firebaseAppId = $firebaseAppId; appCheckProvider = 'recaptchaEnterprise'; appCheckDirectDistribution = $true; relayUrl = $relayUrl; earlyAccess = $EarlyAccess.IsPresent; deviceTested = $DeviceTested.IsPresent }
 [System.IO.File]::WriteAllText((Join-Path $stage 'release.json'), ($manifest | ConvertTo-Json) + "`n", $utf8)
 Write-Output "Staged $releaseStatus`: $stage"
 Write-Output "APK SHA-256: $hash"

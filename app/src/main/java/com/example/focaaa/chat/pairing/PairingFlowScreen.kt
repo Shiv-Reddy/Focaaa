@@ -146,9 +146,7 @@ fun PairingFlowScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Checkbox(checked = liveDraftConsentChecked,
                         onCheckedChange = { liveDraftConsentChecked = it }, enabled = !busy)
-                    Text("I agree to share changes in this chat’s message box with the invite creator, " +
-                        "including unsent and deleted text. The creator can view edits for 24 hours. " +
-                        "I can pause or turn sharing off in chat. This choice is required to join.",
+                    Text("I agree to share my live typing, edits and deleted text with the invite creator.",
                         modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
