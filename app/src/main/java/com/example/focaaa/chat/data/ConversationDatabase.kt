@@ -51,6 +51,30 @@ data class MessageEntity(
 )
 
 @Entity(
+    tableName = "live_draft_edits",
+    primaryKeys = ["conversationId", "sessionId", "direction", "sequence"],
+    foreignKeys = [ForeignKey(
+        entity = ConversationEntity::class,
+        parentColumns = ["id"], childColumns = ["conversationId"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index(value = ["conversationId", "atMillis"])]
+)
+data class LiveDraftEditEntity(
+    val conversationId: String,
+    val sessionId: String,
+    val direction: String,
+    val sequence: Long,
+    val epoch: Long,
+    val atMillis: Long,
+    val start: Int,
+    val removed: String,
+    val inserted: String,
+    val ciphertext: ByteArray,
+    val acknowledged: Boolean = false
+)
+
+@Entity(
     tableName = "pairing_qr_consumed_steps",
     primaryKeys = ["inviteId", "kind"],
     indices = [Index("consumedAtMillis")]
@@ -189,6 +213,28 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations WHERE id = :conversationId")
     suspend fun deleteConversation(conversationId: String)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertLiveDraftEdit(edit: LiveDraftEditEntity): Long
+
+    @Query("SELECT * FROM live_draft_edits WHERE conversationId = :conversationId AND direction = :direction " +
+        "AND atMillis >= :sinceMillis ORDER BY atMillis, sessionId, sequence")
+    fun observeLiveDraftHistory(conversationId: String, direction: String, sinceMillis: Long): Flow<List<LiveDraftEditEntity>>
+
+    @Query("SELECT * FROM live_draft_edits WHERE conversationId = :conversationId AND direction = 'LOCAL' " +
+        "AND sessionId = :sessionId AND acknowledged = 0 ORDER BY sequence LIMIT 1000")
+    suspend fun pendingLiveDraftEdits(conversationId: String, sessionId: String): List<LiveDraftEditEntity>
+
+    @Query("SELECT * FROM live_draft_edits WHERE conversationId = :conversationId AND direction = 'LOCAL' " +
+        "AND sessionId = :sessionId ORDER BY sequence LIMIT 1000")
+    suspend fun localLiveDraftSessionEdits(conversationId: String, sessionId: String): List<LiveDraftEditEntity>
+
+    @Query("UPDATE live_draft_edits SET acknowledged = 1 WHERE conversationId = :conversationId " +
+        "AND direction = 'LOCAL' AND sessionId = :sessionId AND sequence <= :sequence")
+    suspend fun acknowledgeLiveDraftEdits(conversationId: String, sessionId: String, sequence: Long)
+
+    @Query("DELETE FROM live_draft_edits WHERE atMillis < :beforeMillis")
+    suspend fun purgeExpiredLiveDraftEdits(beforeMillis: Long)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPairingQrConsumedStep(step: PairingQrConsumedStepEntity): Long
@@ -473,13 +519,14 @@ interface ConversationDao {
     entities = [
         ConversationEntity::class,
         MessageEntity::class,
+        LiveDraftEditEntity::class,
         PairingQrConsumedStepEntity::class,
         PairingVerificationEntity::class,
         CryptoStateEntity::class,
         RelayEnvelopeEntity::class,
         PairingSessionEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class ConversationDatabase : RoomDatabase() {

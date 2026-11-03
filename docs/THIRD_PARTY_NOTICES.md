@@ -1,5 +1,9 @@
 # Third-party notices
 
+## OkHttp
+
+Focaaa 1.7 uses OkHttp 4.12.0 for its optional live-draft WebSocket client. OkHttp is copyright 2019 Square, Inc. and distributed under the Apache License 2.0 license. See the [upstream license](https://github.com/square/okhttp/blob/master/LICENSE.txt).
+
 ## SQLCipher for Android Community Edition
 
 This application includes SQLCipher for Android Community Edition 4.19.1, copyright (c) 2008-2023, ZETETIC LLC. All rights reserved. The project publishes the license in its [upstream repository](https://github.com/sqlcipher/sqlcipher-android/blob/master/LICENSE).

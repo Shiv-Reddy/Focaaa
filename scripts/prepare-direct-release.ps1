@@ -1,5 +1,6 @@
 param(
     [Parameter(Mandatory = $true)][string]$ApkPath,
+    [Parameter(Mandatory = $true)][string]$PreviousApkPath,
     [Parameter(Mandatory = $true)][string]$ExpectedFirebaseAppId,
     [switch]$DeviceTested,
     [switch]$EarlyAccess,
@@ -90,6 +91,25 @@ $size = (Get-Item -LiteralPath $apk).Length
 Assert-That ($size -le 25MB) 'The APK exceeds Cloudflare Free static assets 25 MiB file limit.'
 Assert-That ($DeviceTested.IsPresent -xor $EarlyAccess.IsPresent) 'Specify either -DeviceTested after the two-phone check or -EarlyAccess for a user-approved pretest release.'
 
+$previousApk = (Resolve-Path -LiteralPath $PreviousApkPath).Path
+$previousHash = (Get-FileHash -LiteralPath $previousApk -Algorithm SHA256).Hash.ToLowerInvariant()
+$expectedPreviousHash = '2cc791d55352f0f56396276b6ff95e0e9c384d54f688b6cbaF3da23e9b40fad9'.ToLowerInvariant()
+Assert-That ($previousHash -eq $expectedPreviousHash) 'The previous APK is not the exact published Focaaa 1.6 binary.'
+$previousBadging = @(& $aapt dump badging $previousApk 2>&1)
+Assert-That ($LASTEXITCODE -eq 0) 'Could not inspect the previous APK.'
+$previousPackage = ($previousBadging | Where-Object { $_ -match '^package:' } | Select-Object -First 1)
+Assert-That ($previousPackage -match "name='com.focaaa.app' versionCode='7' versionName='1.6'") 'The previous APK is not Focaaa 1.6.'
+$previousErrorPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $previousSignature = @(& $signer verify --verbose --print-certs $previousApk 2>&1)
+} finally { $ErrorActionPreference = $previousErrorPreference }
+Assert-That ($LASTEXITCODE -eq 0) 'The previous APK signature did not verify.'
+$previousCertificate = ($previousSignature | Select-String 'certificate SHA-256 digest: ([a-fA-F0-9]{64})' | Select-Object -First 1)
+Assert-That ($null -ne $previousCertificate -and $previousCertificate.Matches[0].Groups[1].Value.ToLowerInvariant() -eq $certificateSha) 'The two APKs are not signed by the same release key.'
+$previousSize = (Get-Item -LiteralPath $previousApk).Length
+Assert-That ($previousSize -le 25MB) 'The previous APK exceeds Cloudflare Free static assets 25 MiB file limit.'
+
 $hash = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant()
 $apkName = "focaaa-$versionName.apk"
 $stage = Join-Path $OutputRoot "v$versionCode-$hash"
@@ -97,13 +117,19 @@ Assert-That (-not (Test-Path -LiteralPath $stage)) 'This exact release is alread
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 Copy-Item -LiteralPath $apk -Destination (Join-Path $stage $apkName)
 Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $apkName) -Algorithm SHA256).Hash.ToLowerInvariant()) -eq $hash) 'The copied APK differs from the tested input.'
+$previousApkName = 'focaaa-1.6.apk'
+Copy-Item -LiteralPath $previousApk -Destination (Join-Path $stage $previousApkName)
+Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $previousApkName) -Algorithm SHA256).Hash.ToLowerInvariant()) -eq $previousHash) 'The staged 1.6 APK differs from the published input.'
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 $source = Join-Path $PSScriptRoot '..\release-site'
 $page = [System.IO.File]::ReadAllText((Join-Path $source 'index.html'))
 $releaseStatus = if ($EarlyAccess) { 'Early access build' } else { 'Verified release' }
 $page = $page.Replace('{{VERSION}}', $versionName).Replace('{{APK_FILENAME}}', $apkName).
     Replace('{{APK_SIZE}}', ($size / 1MB).ToString('0.0', [cultureinfo]::InvariantCulture)).
-    Replace('{{SHA256}}', $hash).Replace('{{RELEASE_STATUS}}', $releaseStatus)
+    Replace('{{SHA256}}', $hash).Replace('{{RELEASE_STATUS}}', $releaseStatus).
+    Replace('{{PREVIOUS_VERSION}}', '1.6').Replace('{{PREVIOUS_APK_FILENAME}}', $previousApkName).
+    Replace('{{PREVIOUS_APK_SIZE}}', ($previousSize / 1MB).ToString('0.0', [cultureinfo]::InvariantCulture)).
+    Replace('{{PREVIOUS_SHA256}}', $previousHash)
 Assert-That (-not ($page -match '\{\{[A-Z_]+\}\}')) 'The download page has an unfilled release placeholder.'
 [System.IO.File]::WriteAllText((Join-Path $stage 'index.html'), $page, $utf8)
 Copy-Item -LiteralPath (Join-Path $source 'privacy.html') -Destination $stage
@@ -112,8 +138,8 @@ Copy-Item -LiteralPath (Join-Path $source 'favicon.svg') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source '_headers') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source 'wrangler.jsonc') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source '.assetsignore') -Destination $stage
-[System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), "$hash  $apkName`n", $utf8)
-$manifest = [ordered]@{ packageName = $packageName; versionCode = $versionCode; versionName = $versionName; apk = $apkName; sha256 = $hash; certificateSha256 = $certificateSha; firebaseAppId = $firebaseAppId; appCheckProvider = 'recaptchaEnterprise'; relayUrl = $relayUrl; earlyAccess = $EarlyAccess.IsPresent; deviceTested = $DeviceTested.IsPresent }
+[System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), "$hash  $apkName`n$previousHash  $previousApkName`n", $utf8)
+$manifest = [ordered]@{ packageName = $packageName; versionCode = $versionCode; versionName = $versionName; apk = $apkName; sha256 = $hash; previousApk = $previousApkName; previousSha256 = $previousHash; certificateSha256 = $certificateSha; firebaseAppId = $firebaseAppId; appCheckProvider = 'recaptchaEnterprise'; relayUrl = $relayUrl; earlyAccess = $EarlyAccess.IsPresent; deviceTested = $DeviceTested.IsPresent }
 [System.IO.File]::WriteAllText((Join-Path $stage 'release.json'), ($manifest | ConvertTo-Json) + "`n", $utf8)
 Write-Output "Staged $releaseStatus`: $stage"
 Write-Output "APK SHA-256: $hash"

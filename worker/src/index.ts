@@ -7,6 +7,8 @@ import {
 } from './pairing.ts';
 import { sendEnvelope, fetchPendingEnvelopes, acknowledgeEnvelopes, markRead, fetchMessageStatuses, revokeDevice, purgeExpired } from './messages.ts';
 import { beginMediaUpload, uploadMediaChunk, completeMediaUpload, fetchMediaManifest, fetchMediaChunk, cancelMediaUpload } from './media.ts';
+import { closeLiveDraftRoom, connectLiveDraft, LiveDraftRoom } from './live-draft.ts';
+export { LiveDraftRoom };
 
 type Authenticator = (request: Request, env: Env) => Promise<string>;
 type HintSender = (env: Env, token: string, pairId: string) => Promise<void>;
@@ -49,6 +51,11 @@ export function createRelayHandler(dependencies: { authenticate: Authenticator; 
     try {
       const url = new URL(request.url);
       if (url.pathname === '/health' && request.method === 'GET') return json({ service: 'focaaa-relay', status: 'ok' });
+      if (url.pathname === '/v1/liveDraft' && request.method === 'GET') {
+        if (!env.DB || !env.FIREBASE_PROJECT_ID) fail(503, 'unavailable', 'Relay configuration is incomplete.');
+        const uid = await dependencies.authenticate(request, env);
+        return await connectLiveDraft(request, env, uid);
+      }
       if (request.method !== 'POST' || !url.pathname.startsWith('/v1/')) {
         fail(404, 'not-found', 'Unknown relay operation.');
       }
@@ -66,7 +73,15 @@ export function createRelayHandler(dependencies: { authenticate: Authenticator; 
         case 'publishPairingWelcome': result = await publishPairingWelcome(env, uid, data, now); break;
         case 'fetchPairingWelcome': result = await fetchPairingWelcome(env, uid, data, now); break;
         case 'confirmPairing': result = await confirmPairing(env, uid, data, now); break;
-        case 'revokePairing': result = await revokePairing(env, uid, data, now); break;
+        case 'revokePairing': {
+          result = await revokePairing(env, uid, data, now);
+          const pairId = data.conversationId;
+          if (typeof pairId === 'string') {
+            try { await closeLiveDraftRoom(env, pairId); }
+            catch { /* Pair revocation is durable; sockets recheck membership on every frame. */ }
+          }
+          break;
+        }
         case 'sendEnvelope': result = await sendEnvelope(env, uid, data, now, dependencies.sendHint); break;
         case 'fetchPendingEnvelopes': result = await fetchPendingEnvelopes(env, uid, data, now); break;
         case 'acknowledgeEnvelopes': result = await acknowledgeEnvelopes(env, uid, data, now); break;

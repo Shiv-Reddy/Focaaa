@@ -17,6 +17,10 @@
       "migrations_dir": "migrations"
     }
   ],
+  "durable_objects": {
+    "bindings": [{ "name": "LIVE_DRAFT", "class_name": "LiveDraftRoom" }]
+  },
+  "migrations": [{ "tag": "v1-live-draft", "new_sqlite_classes": ["LiveDraftRoom"] }],
   "triggers": {
     "crons": ["0 3 * * *"]
   }

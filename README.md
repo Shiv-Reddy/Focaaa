@@ -11,14 +11,15 @@ An Android focus timer and task list with an optional, PIN-protected private con
 - Private text, photos, and short MP4 videos use the encrypted conversation. This release allows one active partner.
 - A user-added Quick Settings tile can open a notification-panel conversation with inline Reply. Generic focus reminders contain no sender or message text.
 - Conversation history stays encrypted on the phone. Optional encrypted history backups restore as read-only records; media files and active pairing keys are not included.
+- In 1.7, each person can explicitly share their unsent draft while the private chat is open. A visible chip pauses sharing; deleted text remains viewable in the paired phones' encrypted edit history for 24 hours.
 
 Photos are limited to 2 MiB and MP4 videos to 10 MiB. Encrypted relay media copies expire after seven days. The app supports Android 8.0 (API 26) and newer.
 
 ## Current release
 
-Version **1.6** (version code 7) is an early-access direct APK. The signed app and download page share a teal and mist visual theme. The download page provides the APK checksum. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
+Version **1.7** (version code 8) is the new early-access APK; the exact signed **1.6** (version code 7) APK remains available on the same download page. Version 1.7 adds opt-in live draft sharing using MLS-derived AES-GCM keys and authenticated WebSockets. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
 
-The Android unit suite, release lint, signed APK build, and backend tests passed. The exact 1.6 build was installed over the existing Samsung release app without clearing data; the three-tap tile opened the notification chat and Reply promptly with the app both open and closed. Version 1.5 also passed repeated send and refresh checks on Samsung. Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. **The exact 1.6 build still needs a two-phone delivery check.** The release signing key and password also need separate offline backups. This project has not received an independent security audit.
+The Android unit suite, release lint, Rust tests, signed APK build, and backend tests passed. Version 1.7 was installed over the signed app on Samsung without clearing data, and its release startup check passed after a build optimization fix. **The live draft exchange still needs a two-phone check before it can be called verified.** Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. The release signing key and password still need separate offline backups. This project has not received an independent security audit.
 
 ## Project layout
 
@@ -26,7 +27,7 @@ The Android unit suite, release lint, signed APK build, and backend tests passed
 | --- | --- |
 | [`app/`](app/) | Kotlin, Jetpack Compose, local encrypted storage, pairing and chat |
 | [`crypto/openmls/`](crypto/openmls/) | Rust/OpenMLS Android integration |
-| [`worker/`](worker/) | Cloudflare Worker and D1 ciphertext relay |
+| [`worker/`](worker/) | Cloudflare Worker, D1 ciphertext relay, and pair-scoped live-draft WebSocket |
 | [`release-site/`](release-site/) | Static direct-download and privacy pages |
 | [`scripts/`](scripts/) | Local release build, staging and key-backup checks |
 | [`docs/history-backup.md`](docs/history-backup.md) | Backup and restore behavior |

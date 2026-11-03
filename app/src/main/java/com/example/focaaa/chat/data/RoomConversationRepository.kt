@@ -47,6 +47,23 @@ class RoomConversationRepository private constructor(
     private val appContext: Context
 ) : ConversationRepository {
     private val dao = database.conversationDao()
+
+    suspend fun saveLiveDraftEdit(edit: LiveDraftEditEntity): Boolean = dao.insertLiveDraftEdit(edit) != -1L
+
+    fun liveDraftHistory(conversationId: String, direction: String): Flow<List<LiveDraftEditEntity>> =
+        dao.observeLiveDraftHistory(conversationId, direction, System.currentTimeMillis() - LIVE_DRAFT_RETENTION_MS)
+
+    suspend fun pendingLiveDraftEdits(conversationId: String, sessionId: String): List<LiveDraftEditEntity> =
+        dao.pendingLiveDraftEdits(conversationId, sessionId)
+
+    suspend fun localLiveDraftSessionEdits(conversationId: String, sessionId: String): List<LiveDraftEditEntity> =
+        dao.localLiveDraftSessionEdits(conversationId, sessionId)
+
+    suspend fun acknowledgeLiveDraftEdits(conversationId: String, sessionId: String, sequence: Long) =
+        dao.acknowledgeLiveDraftEdits(conversationId, sessionId, sequence)
+
+    suspend fun purgeExpiredLiveDraftEdits() =
+        dao.purgeExpiredLiveDraftEdits(System.currentTimeMillis() - LIVE_DRAFT_RETENTION_MS)
     val pairingQrReplayStore: PairingQrReplayStore = RoomPairingQrReplayStore(dao)
     val pairingVerificationStore: PairingVerificationStore = RoomPairingVerificationStore(dao)
     val pairingSessionStore: PairingSessionStore = RoomPairingSessionStore(dao)
@@ -162,6 +179,7 @@ class RoomConversationRepository private constructor(
     companion object {
         private const val DEMO_CONVERSATION_ID = "synthetic-demo"
         private const val RECEIPT_QUERY_WINDOW_MS = 6L * 24 * 60 * 60 * 1000
+        private const val LIVE_DRAFT_RETENTION_MS = 24L * 60 * 60 * 1000
 
         fun open(context: Context): RoomConversationRepository {
             synchronized(this) {
@@ -176,7 +194,7 @@ class RoomConversationRepository private constructor(
                 )
                     .openHelperFactory(factory)
                     .addCallback(seedDemoMessages())
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .build()
                 database.openHelper.writableDatabase
                 return RoomConversationRepository(database, context.applicationContext).also { instance = it }
@@ -315,6 +333,28 @@ class RoomConversationRepository private constructor(
                 db.execSQL("ALTER TABLE messages ADD COLUMN readReceiptSent INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("UPDATE messages SET deliveryLevel = 0 WHERE sender = 'LOCAL_USER' " +
                     "AND id IN (SELECT envelopeId FROM relay_envelopes WHERE direction = 'OUTBOUND' AND state = 'QUEUED')")
+            }
+        }
+
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""CREATE TABLE IF NOT EXISTS `live_draft_edits` (
+                    `conversationId` TEXT NOT NULL,
+                    `sessionId` TEXT NOT NULL,
+                    `direction` TEXT NOT NULL,
+                    `sequence` INTEGER NOT NULL,
+                    `epoch` INTEGER NOT NULL,
+                    `atMillis` INTEGER NOT NULL,
+                    `start` INTEGER NOT NULL,
+                    `removed` TEXT NOT NULL,
+                    `inserted` TEXT NOT NULL,
+                    `ciphertext` BLOB NOT NULL,
+                    `acknowledged` INTEGER NOT NULL,
+                    PRIMARY KEY(`conversationId`, `sessionId`, `direction`, `sequence`),
+                    FOREIGN KEY(`conversationId`) REFERENCES `conversations`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )""".trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_draft_edits_conversationId_atMillis` " +
+                    "ON `live_draft_edits` (`conversationId`, `atMillis`)")
             }
         }
 

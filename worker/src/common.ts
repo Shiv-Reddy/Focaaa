@@ -1,5 +1,6 @@
 export interface Env {
   DB: D1Database;
+  LIVE_DRAFT?: DurableObjectNamespace;
   FIREBASE_PROJECT_ID: string;
   FIREBASE_PROJECT_NUMBER: string;
   FIREBASE_ANDROID_APP_ID: string;

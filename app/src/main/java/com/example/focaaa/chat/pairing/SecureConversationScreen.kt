@@ -102,6 +102,9 @@ import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.awaitCancellation
+import com.example.focaaa.chat.live.LiveDraftCoordinator
+import com.example.focaaa.chat.live.PartnerLiveDraft
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
@@ -131,6 +134,29 @@ fun SecureConversationScreen(
     val context = LocalContext.current
     val lifecycleOwner = context as LifecycleOwner
     val currentServicePair = remember(conversationId, isRestored) { !isRestored && RelayServiceGeneration.isCurrent(context, conversationId) }
+    val liveDraft = remember(conversationId, currentServicePair) {
+        if (currentServicePair) LiveDraftCoordinator(context, repository, conversationId) else null
+    }
+    val sharing = liveDraft?.sharing?.collectAsState()?.value ?: false
+    val liveAvailable = liveDraft?.available?.collectAsState()?.value ?: false
+    val partnerDraft = liveDraft?.partner?.collectAsState()?.value ?: PartnerLiveDraft()
+    val historyFlow = remember(conversationId) { repository.liveDraftHistory(conversationId, "REMOTE") }
+    val remoteDraftHistory by historyFlow.collectAsState(initial = emptyList())
+    val localHistoryFlow = remember(conversationId) { repository.liveDraftHistory(conversationId, "LOCAL") }
+    val localDraftHistory by localHistoryFlow.collectAsState(initial = emptyList())
+    val recentDraftHistory = remember(remoteDraftHistory, localDraftHistory) {
+        (remoteDraftHistory + localDraftHistory).sortedWith(compareBy({ it.atMillis }, { it.sessionId }, { it.sequence }))
+    }
+    var showLiveConsent by remember { mutableStateOf(false) }
+    var showDraftHistory by remember { mutableStateOf(false) }
+    DisposableEffect(liveDraft) { onDispose { liveDraft?.dispose() } }
+    LaunchedEffect(liveDraft, lifecycleOwner) {
+        if (liveDraft == null) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            liveDraft.start()
+            try { awaitCancellation() } finally { liveDraft.stop() }
+        }
+    }
     DisposableEffect(conversationId, lifecycleOwner, currentServicePair) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -244,6 +270,7 @@ fun SecureConversationScreen(
             status = null
             try {
                 val savedLocally = sendMessage(outgoing)
+                liveDraft?.textChanged("")
                 draft = ""
                 status = if (savedLocally) null else "Saved on this phone. Delivery could not be confirmed."
             } catch (ended: PairEndedException) {
@@ -278,6 +305,21 @@ fun SecureConversationScreen(
                 Text("Private conversation", color = FocaaaPalette.Muted, style = MaterialTheme.typography.labelSmall)
             }
             IconButton(onClick = onPrivateSettings) { Text("⋮", color = ChatForest, fontSize = 25.sp) }
+        }
+        if (currentServicePair && !connectionEnded) {
+            Row(modifier = Modifier.fillMaxWidth().background(Color.White)
+                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.End) {
+                Surface(shape = RoundedCornerShape(14.dp),
+                    color = if (sharing) FocaaaPalette.Outgoing else FocaaaPalette.Pale,
+                    modifier = Modifier.clickable {
+                        if (sharing) liveDraft?.pauseSharing() else if (liveAvailable) showLiveConsent = true
+                    }) {
+                    Text(if (sharing) "Live draft on · Pause" else "Live draft off",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = ChatForest, style = MaterialTheme.typography.labelSmall)
+                }
+            }
         }
         if (!currentServicePair || connectionEnded) {
             Surface(color = FocaaaPalette.Pale, modifier = Modifier.fillMaxWidth()) {
@@ -340,6 +382,28 @@ fun SecureConversationScreen(
             )
         }
 
+        if (partnerDraft.sharing && currentServicePair && !connectionEnded) {
+            Surface(color = Color.White, modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Partner’s live draft", color = ChatForest, style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold)
+                    Text(partnerDraft.text.ifEmpty { "Typing…" }, color = FocaaaPalette.Ink,
+                        style = MaterialTheme.typography.bodyMedium)
+                    if (recentDraftHistory.isNotEmpty()) {
+                        Text("View recent edits", color = ChatForest, style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.clickable { showDraftHistory = true })
+                    }
+                }
+            }
+        }
+        if (!partnerDraft.sharing && recentDraftHistory.isNotEmpty() && currentServicePair && !connectionEnded) {
+            Text("View recent live edits", color = ChatForest,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.fillMaxWidth().clickable { showDraftHistory = true }
+                    .padding(horizontal = 18.dp, vertical = 5.dp))
+        }
+
         if (currentServicePair && !connectionEnded) Row(
             modifier = Modifier.fillMaxWidth().background(ChatCanvas).padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.Bottom
@@ -361,7 +425,11 @@ fun SecureConversationScreen(
                         }
                     }
                     BasicTextField(
-                        value = draft, onValueChange = { draft = it.take(4000) }, enabled = !busy,
+                        value = draft, onValueChange = {
+                            val changed = it.take(4000)
+                            liveDraft?.textChanged(changed)
+                            draft = changed
+                        }, enabled = !busy,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = FocaaaPalette.Ink),
                         cursorBrush = SolidColor(ChatForest), maxLines = 5,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences,
@@ -386,6 +454,39 @@ fun SecureConversationScreen(
             }
         }
     }
+    if (showLiveConsent) AlertDialog(
+        onDismissRequest = { showLiveConsent = false },
+        title = { Text("Share your live draft?") },
+        text = { Text("Your partner will see each text change before you send, including text you delete. " +
+            "Consented edits remain viewable in both phones’ encrypted private history for 24 hours. " +
+            "Both phones need Focaaa 1.7 for live viewing. Tap the chip again to pause sharing immediately.") },
+        confirmButton = { TextButton(onClick = {
+            showLiveConsent = false
+            liveDraft?.startSharing(draft)
+        }) { Text("Share live draft") } },
+        dismissButton = { TextButton(onClick = { showLiveConsent = false }) { Text("Cancel") } }
+    )
+    if (showDraftHistory) AlertDialog(
+        onDismissRequest = { showDraftHistory = false },
+        title = { Text("Recent live draft edits") },
+        text = {
+            LazyColumn(modifier = Modifier.height(320.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                itemsIndexed(recentDraftHistory.takeLast(100).reversed()) { _, edit ->
+                    Column {
+                        Text((if (edit.direction == "LOCAL") "You · " else "Partner · ") +
+                            java.time.Instant.ofEpochMilli(edit.atMillis)
+                                .atZone(java.time.ZoneId.systemDefault()).toLocalTime().toString(),
+                            style = MaterialTheme.typography.labelSmall, color = FocaaaPalette.Muted)
+                        if (edit.removed.isNotEmpty()) Text("Deleted: ${edit.removed}",
+                            style = MaterialTheme.typography.bodySmall, color = FocaaaPalette.Ink)
+                        if (edit.inserted.isNotEmpty()) Text("Added: ${edit.inserted}",
+                            style = MaterialTheme.typography.bodySmall, color = FocaaaPalette.Ink)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { showDraftHistory = false }) { Text("Close") } }
+    )
     deleteTarget?.let { selected ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },

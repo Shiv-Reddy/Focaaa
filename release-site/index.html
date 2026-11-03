@@ -25,7 +25,7 @@
             <a class="download" href="{{APK_FILENAME}}" download><span class="download-icon" aria-hidden="true">↓</span><span>Download for Android</span></a>
             <span class="download-meta">Version {{VERSION}}<br>{{APK_SIZE}} MiB · Android 8+</span>
           </div>
-          <p class="preview-note">Direct APK download. Android may ask you to allow installation from your browser.</p>
+          <p class="preview-note">Version {{VERSION}} is an early access build with optional live drafts. <a href="{{PREVIOUS_APK_FILENAME}}" download>Get stable {{PREVIOUS_VERSION}} instead</a>.</p>
         </div>
         <div class="focus-stage" id="the-app" aria-label="Illustration of Focaaa's focus timer and task list">
           <div class="stage-top"><span>Focaaa / Today</span><span class="stage-date">A little at a time.</span></div>
@@ -45,8 +45,11 @@
         </div>
       </section>
       <section class="install" id="install" aria-labelledby="install-title">
-        <div class="install-main"><p class="section-kicker">Direct download</p><h2 id="install-title">Install Focaaa</h2><p>Download the APK on your Android phone, open the file, and follow Android’s install prompt. This is an early access release, with updates available from this page.</p><a class="install-link" href="{{APK_FILENAME}}" download>Download version {{VERSION}} <span aria-hidden="true">↗</span></a></div>
-        <div class="install-proof"><span class="proof-label">Verify your download</span><p>Check the file against this SHA-256 value before installing.</p><code>{{SHA256}}</code><a href="SHA256SUMS.txt">Download checksum file</a></div>
+        <div class="install-main"><p class="section-kicker">Direct download</p><h2 id="install-title">Choose your build</h2><p>Both are signed Android APKs. Install from your phone’s browser; Android may ask you to allow installation from that browser.</p>
+          <div class="version-choice"><span class="version-tag">New · early access</span><strong>Focaaa {{VERSION}}</strong><p>Includes optional live draft sharing in private chat. When you choose to turn it on, your partner can see edits before sending, including deleted text. Edits stay viewable for 24 hours on both phones.</p><a class="install-link" href="{{APK_FILENAME}}" download>Download {{VERSION}} <span aria-hidden="true">↗</span></a><small>{{APK_SIZE}} MiB · SHA-256 <code>{{SHA256}}</code></small></div>
+          <div class="version-choice"><span class="version-tag stable">Stable build</span><strong>Focaaa {{PREVIOUS_VERSION}}</strong><p>The existing focus app and private chat, without live draft sharing. This is the exact previously published APK.</p><a class="install-link" href="{{PREVIOUS_APK_FILENAME}}" download>Download {{PREVIOUS_VERSION}} <span aria-hidden="true">↗</span></a><small>{{PREVIOUS_APK_SIZE}} MiB · SHA-256 <code>{{PREVIOUS_SHA256}}</code></small></div>
+        </div>
+        <div class="install-proof"><span class="proof-label">Verify your download</span><p>The checksum file lists both APKs. Compare the SHA-256 for the version you downloaded before installing.</p><a href="SHA256SUMS.txt">Download checksum file</a></div>
       </section>
       <p class="honesty">Focaaa can reduce casual exposure of private activity, but Android can still show that the app is installed or used. Read the <a href="privacy.html">privacy notice</a> for details.</p>
     </main>
