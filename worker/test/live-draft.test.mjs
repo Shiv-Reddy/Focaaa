@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { database } from './d1.mjs';
-import { authorizeLiveDraft, validateLiveDraftFrame, LiveDraftRoom } from '../src/live-draft.ts';
+import { authorizeLiveDraft, setLiveDraftConsent, validateLiveDraftFrame, LiveDraftRoom } from '../src/live-draft.ts';
 import { createRelayHandler } from '../src/index.ts';
 
 const ownerDevice = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
@@ -14,8 +14,8 @@ function fixture() {
   DB.prepare('INSERT INTO devices(uid,device_id,updated_at_ms) VALUES(?,?,?)').bind('owner', ownerDevice, now).run();
   DB.prepare('INSERT INTO devices(uid,device_id,updated_at_ms) VALUES(?,?,?)').bind('joiner', joinerDevice, now).run();
   DB.prepare(`INSERT INTO pairs(pair_id,owner_uid,owner_device_id,joiner_uid,joiner_device_id,
-    status,pairing_status,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,'active','complete',?,?)`)
-    .bind(pairId, 'owner', ownerDevice, 'joiner', joinerDevice, now, now).run();
+    status,pairing_status,created_at_ms,updated_at_ms,live_draft_consent,live_draft_consent_at_ms) VALUES(?,?,?,?,?,'active','complete',?,?,1,?)`)
+    .bind(pairId, 'owner', ownerDevice, 'joiner', joinerDevice, now, now, now).run();
   return DB;
 }
 
@@ -33,6 +33,31 @@ test('only the active registered pair devices can join the live draft socket', a
   } finally { DB.close(); }
 });
 
+test('live draft sockets require the joiner consent recorded on the pair', async () => {
+  const DB = fixture();
+  try {
+    DB.prepare('UPDATE pairs SET live_draft_consent = 0 WHERE pair_id = ?').bind(pairId).run();
+    await assert.rejects(authorizeLiveDraft({ DB }, 'owner', ownerDevice, pairId));
+    await assert.rejects(authorizeLiveDraft({ DB }, 'joiner', joinerDevice, pairId));
+  } finally { DB.close(); }
+});
+
+test('only the authenticated joiner device can enable or withdraw draft consent', async () => {
+  const DB = fixture();
+  DB.prepare('UPDATE pairs SET live_draft_consent = 0 WHERE pair_id = ?').bind(pairId).run();
+  const input = enabled => ({ deviceId: joinerDevice, conversationId: pairId, enabled });
+  try {
+    await assert.rejects(setLiveDraftConsent({ DB }, 'owner',
+      { ...input(true), deviceId: ownerDevice }, Date.now()));
+    await assert.rejects(setLiveDraftConsent({ DB }, 'joiner',
+      { ...input(true), deviceId: ownerDevice }, Date.now()));
+    await setLiveDraftConsent({ DB }, 'joiner', input(true), Date.now());
+    assert.equal(await authorizeLiveDraft({ DB }, 'owner', ownerDevice, pairId), 'owner');
+    await setLiveDraftConsent({ DB }, 'joiner', input(false), Date.now());
+    await assert.rejects(authorizeLiveDraft({ DB }, 'owner', ownerDevice, pairId));
+  } finally { DB.close(); }
+});
+
 test('draft frames reject plaintext, invalid sequence, and oversized ciphertext', () => {
   const good = { type: 'edit', sessionId: 'session_123', sequence: 1, epoch: 2,
     payloadBase64: Buffer.from('opaque ciphertext').toString('base64') };
@@ -46,7 +71,7 @@ test('draft frames reject plaintext, invalid sequence, and oversized ciphertext'
     { type: 'start', sessionId: 'session_123', sequence: 0 });
 });
 
-test('the room forwards opaque edits only to the other active pair member', async () => {
+test('the room forwards participant edits only to the invite creator', async () => {
   const DB = fixture();
   const makeSocket = (uid, deviceId, role) => ({
     attachment: { uid, deviceId, pairId, role, second: 0, count: 0 }, sent: [], closed: false,
@@ -61,13 +86,42 @@ test('the room forwards opaque edits only to the other active pair member', asyn
   const frame = { type: 'edit', sessionId: 'session_123', sequence: 1, epoch: 2,
     payloadBase64: Buffer.from('opaque ciphertext').toString('base64') };
   try {
-    await room.webSocketMessage(owner, JSON.stringify(frame));
-    assert.deepEqual(joiner.sent, [frame]);
-    assert.deepEqual(owner.sent, []);
+    await room.webSocketMessage(joiner, JSON.stringify(frame));
+    assert.deepEqual(owner.sent, [frame]);
+    assert.deepEqual(joiner.sent, []);
     DB.prepare("UPDATE pairs SET status = 'revoked' WHERE pair_id = ?").bind(pairId).run();
-    await room.webSocketMessage(owner, JSON.stringify(frame));
+    await room.webSocketMessage(joiner, JSON.stringify(frame));
+    assert.equal(joiner.closed, true);
+    assert.deepEqual(owner.sent, [frame]);
+  } finally { DB.close(); }
+});
+
+test('the creator cannot send drafts and the participant cannot receive creator drafts through socket frames', async () => {
+  const DB = fixture();
+  const makeSocket = (uid, deviceId, role) => ({
+    attachment: { uid, deviceId, pairId, role, second: 0, count: 0 }, sent: [], closed: false,
+    deserializeAttachment() { return this.attachment; },
+    serializeAttachment(value) { this.attachment = value; },
+    send(value) { this.sent.push(JSON.parse(value)); },
+    close() { this.closed = true; }
+  });
+  const owner = makeSocket('owner', ownerDevice, 'owner');
+  const joiner = makeSocket('joiner', joinerDevice, 'joiner');
+  const room = new LiveDraftRoom({ getWebSockets: () => [owner, joiner] }, { DB });
+  const draft = { type: 'edit', sessionId: 'session_123', sequence: 1, epoch: 2,
+    payloadBase64: Buffer.from('opaque ciphertext').toString('base64') };
+  try {
+    await room.webSocketMessage(owner, JSON.stringify(draft));
     assert.equal(owner.closed, true);
-    assert.deepEqual(joiner.sent, [frame]);
+    assert.deepEqual(joiner.sent, []);
+    owner.closed = false;
+    await room.webSocketMessage(joiner, JSON.stringify({ type: 'ack', sessionId: 'session_123', sequence: 1 }));
+    assert.equal(joiner.closed, true);
+    assert.deepEqual(owner.sent, []);
+    joiner.closed = false;
+    const ack = { type: 'ack', sessionId: 'session_123', sequence: 1 };
+    await room.webSocketMessage(owner, JSON.stringify(ack));
+    assert.deepEqual(joiner.sent, [ack]);
   } finally { DB.close(); }
 });
 

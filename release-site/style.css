@@ -73,6 +73,8 @@ a:focus-visible { outline: 3px solid #a88236; outline-offset: 4px; }
 .version-choice small code { overflow-wrap: anywhere; font-size: 11px; }
 .version-tag { color: var(--green); font-size: 12px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
 .version-tag.stable { color: #6f674e; }
+.archive-note { font-size: 13px; color: var(--muted); }
+.archive-note a { color: var(--green); font-weight: 650; }
 .honesty { font-size: 13px; color: var(--muted); max-width: 700px; margin: 25px 0 88px; }
 .honesty a { font-weight: 650; color: var(--green); }
 footer { border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 20px; padding: 25px 0 42px; color: var(--muted); font-size: 13px; }

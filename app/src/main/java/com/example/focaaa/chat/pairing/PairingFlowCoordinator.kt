@@ -78,7 +78,8 @@ class PairingFlowCoordinator(
         advanceLocked(session)
     }
 
-    suspend fun joinInvite(token: String): PairingSession = mutex.withLock {
+    suspend fun joinInvite(token: String, liveDraftConsent: Boolean): PairingSession = mutex.withLock {
+        require(liveDraftConsent) { "Choose live draft sharing before joining this invite." }
         require(token.length == 32 && token.all { it.isLetterOrDigit() || it == '-' || it == '_' }) {
             "Enter the invite code exactly as the other person shared it."
         }
@@ -90,10 +91,24 @@ class PairingFlowCoordinator(
             role = PairingRole.JOINER,
             stage = PairingStage.IDENTITY_READY,
             identityHandle = identity.value,
-            inviteToken = token
+            inviteToken = token,
+            liveDraftConsent = true
         )
         writeSession(session)
         advanceLocked(session)
+    }
+
+    /** Existing pairs can explicitly enable sharing; the joiner can withdraw it at any time. */
+    suspend fun setLiveDraftConsent(conversationId: String, enabled: Boolean): PairingSession = mutex.withLock {
+        val session = sessionStore.read(conversationId)
+            ?: error("This private connection is unavailable.")
+        check(session.role == PairingRole.JOINER && session.stage == PairingStage.ACTIVE) {
+            "Only the invite participant can choose live draft sharing."
+        }
+        gateway.setLiveDraftConsent(RelayDeviceRegistration.deviceId(appContext), conversationId, enabled).awaitTask()
+        val updated = session.copy(liveDraftConsent = enabled)
+        sessionStore.write(conversationId, updated)
+        updated
     }
 
     /** Poll for the counterpart's next setup action, or retry an interrupted local handoff. */
@@ -429,7 +444,8 @@ class PairingFlowCoordinator(
                 val response = gateway.joinPairingInvite(
                     RelayDeviceRegistration.deviceId(appContext),
                     requireNotNull(session.inviteToken),
-                    keyPackage
+                    keyPackage,
+                    session.liveDraftConsent
                 ).awaitTask().data.objectData()
                 session = session.copy(
                     stage = PairingStage.JOIN_REQUESTED,

@@ -64,6 +64,9 @@ class RoomConversationRepository private constructor(
 
     suspend fun purgeExpiredLiveDraftEdits() =
         dao.purgeExpiredLiveDraftEdits(System.currentTimeMillis() - LIVE_DRAFT_RETENTION_MS)
+
+    suspend fun deleteRemoteLiveDraftHistory(conversationId: String) =
+        dao.deleteRemoteLiveDraftHistory(conversationId)
     val pairingQrReplayStore: PairingQrReplayStore = RoomPairingQrReplayStore(dao)
     val pairingVerificationStore: PairingVerificationStore = RoomPairingVerificationStore(dao)
     val pairingSessionStore: PairingSessionStore = RoomPairingSessionStore(dao)
@@ -194,7 +197,7 @@ class RoomConversationRepository private constructor(
                 )
                     .openHelperFactory(factory)
                     .addCallback(seedDemoMessages())
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .build()
                 database.openHelper.writableDatabase
                 return RoomConversationRepository(database, context.applicationContext).also { instance = it }
@@ -358,6 +361,12 @@ class RoomConversationRepository private constructor(
             }
         }
 
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pairing_session ADD COLUMN liveDraftConsent INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         private fun insertMigrationDemoMessage(
             db: SupportSQLiteDatabase,
             messageId: String,
@@ -495,7 +504,8 @@ private class RoomPairingSessionStore(
             ratchetTree = session.ratchetTree?.copyOf(),
             verificationCode = session.verificationCode,
             localControlQueued = session.localControlQueued,
-            relayActive = session.relayActive
+            relayActive = session.relayActive,
+            liveDraftConsent = session.liveDraftConsent
         )
         if (sessionId != CURRENT_PAIRING_SESSION_ID) {
             dao.savePairingSessionForConversation(entity)
@@ -519,7 +529,8 @@ private fun PairingSessionEntity.toPairingSession(): PairingSession = PairingSes
     ratchetTree = ratchetTree?.copyOf(),
     verificationCode = verificationCode,
     localControlQueued = localControlQueued,
-    relayActive = relayActive
+    relayActive = relayActive,
+    liveDraftConsent = liveDraftConsent
 )
 
 private class RoomEncryptedCryptoStateStore(

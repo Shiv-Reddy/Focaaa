@@ -13,7 +13,8 @@ data class PairingSession(
     val ratchetTree: ByteArray? = null,
     val verificationCode: String? = null,
     val localControlQueued: Boolean = false,
-    val relayActive: Boolean = false
+    val relayActive: Boolean = false,
+    val liveDraftConsent: Boolean = false
 ) {
     override fun toString(): String =
         "PairingSession(role=$role, stage=$stage, identityHandle=<redacted>, inviteToken=<redacted>, conversationId=$conversationId, verificationCode=<redacted>, relayActive=$relayActive)"

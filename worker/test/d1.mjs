@@ -7,6 +7,7 @@ export function database() {
   db.exec(readFileSync(fileURLToPath(new URL('../migrations/0001_relay.sql', import.meta.url)), 'utf8'));
   db.exec(readFileSync(fileURLToPath(new URL('../migrations/0002_message_status.sql', import.meta.url)), 'utf8'));
   db.exec(readFileSync(fileURLToPath(new URL('../migrations/0003_media.sql', import.meta.url)), 'utf8'));
+  db.exec(readFileSync(fileURLToPath(new URL('../migrations/0004_live_draft_consent.sql', import.meta.url)), 'utf8'));
   let queryCount = 0;
   let queryLimit = Infinity;
   function charge() {

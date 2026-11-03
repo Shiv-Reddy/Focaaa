@@ -19,7 +19,30 @@ export async function authorizeLiveDraft(
   await requireDevice(env.DB, uid, deviceId);
   const pair = await requirePair(env.DB, uid, pairId, true);
   requireMemberDevice(pair, uid, deviceId);
+  if (pair.live_draft_consent !== 1) {
+    fail(403, 'permission-denied', 'The invite participant has not enabled live drafts.');
+  }
   return pair.owner_uid === uid ? 'owner' : 'joiner';
+}
+
+/** The invite participant alone can grant or withdraw this pair's live-draft access. */
+export async function setLiveDraftConsent(env: Pick<Env, 'DB'>, uid: string, data: Data, now: number) {
+  const deviceId = deviceIdOf(data);
+  const pairId = idOf(data, 'conversationId');
+  if (typeof data.enabled !== 'boolean') fail(400, 'invalid-argument', 'Live draft choice is invalid.');
+  await requireDevice(env.DB, uid, deviceId);
+  const pair = await requirePair(env.DB, uid, pairId, true);
+  requireMemberDevice(pair, uid, deviceId);
+  if (pair.joiner_uid !== uid || pair.joiner_device_id !== deviceId) {
+    fail(403, 'permission-denied', 'Only the invite participant controls live draft sharing.');
+  }
+  const enabled = data.enabled === true;
+  const result = await env.DB.prepare(`UPDATE pairs SET live_draft_consent = ?,
+    live_draft_consent_at_ms = ?, updated_at_ms = ?
+    WHERE pair_id = ? AND joiner_uid = ? AND joiner_device_id = ? AND status = 'active'`)
+    .bind(enabled ? 1 : 0, enabled ? now : null, now, pairId, uid, deviceId).run();
+  if (result.meta.changes !== 1) fail(410, 'pair-revoked', 'This private connection has ended.');
+  return { enabled };
 }
 
 export function validateLiveDraftFrame(raw: string): DraftFrame {
@@ -106,6 +129,10 @@ export class LiveDraftRoom {
       socket.serializeAttachment(attachment);
       await authorizeLiveDraft(this.env, attachment.uid, attachment.deviceId, attachment.pairId);
       const frame = validateLiveDraftFrame(message);
+      const allowed = attachment.role === 'joiner'
+        ? frame.type === 'start' || frame.type === 'edit' || frame.type === 'stop'
+        : frame.type === 'ack' || frame.type === 'resume';
+      if (!allowed) fail(403, 'permission-denied', 'This pair role cannot send that draft frame.');
       this.notifyPeer(attachment.role, JSON.stringify(frame));
     } catch { socket.close(1008, 'Live draft access ended'); }
   }

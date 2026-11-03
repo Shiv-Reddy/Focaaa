@@ -7,6 +7,7 @@ import android.app.StatusBarManager
 import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.widget.Toast
@@ -56,6 +57,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
@@ -812,6 +814,7 @@ private fun PrivacyLimitsScreen(
     modifier: Modifier = Modifier,
     onContinue: () -> Unit
 ) {
+    val context = LocalContext.current
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -860,6 +863,17 @@ private fun PrivacyLimitsScreen(
                     PrivacyLimit("A new private message may trigger a generic focus reminder with no contact name or message text.")
                     PrivacyLimit("Someone with access to your phone may still discover or open the app.")
                     PrivacyLimit("Private messages are saved on this phone. Encrypted relay copies of new media expire after seven days; downloaded media stays on each phone until deleted. The manual encrypted history backup includes messages but not photo or video files. A replacement phone needs a new pairing.")
+                    PrivacyLimit("For new invites, the joining person must explicitly check a live-draft sharing box. The invite creator can see that person's unsent and deleted message-box edits for up to 24 hours; the creator's drafts are not shared. Sharing can be paused or turned off in chat.")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://focaaa-download.focaaa-free-relay.workers.dev/privacy.html"))) }) {
+                    Text("Privacy policy")
+                }
+                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://focaaa-download.focaaa-free-relay.workers.dev/terms.html"))) }) {
+                    Text("Terms")
                 }
             }
         }

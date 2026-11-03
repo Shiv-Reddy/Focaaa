@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$ApkPath,
     [Parameter(Mandatory = $true)][string]$PreviousApkPath,
+    [Parameter(Mandatory = $true)][string]$LegacyApkPath,
+    [Parameter(Mandatory = $true)][string]$SupersededApkPath,
     [Parameter(Mandatory = $true)][string]$ExpectedFirebaseAppId,
     [switch]$DeviceTested,
     [switch]$EarlyAccess,
@@ -110,6 +112,42 @@ Assert-That ($null -ne $previousCertificate -and $previousCertificate.Matches[0]
 $previousSize = (Get-Item -LiteralPath $previousApk).Length
 Assert-That ($previousSize -le 25MB) 'The previous APK exceeds Cloudflare Free static assets 25 MiB file limit.'
 
+$legacyApk = (Resolve-Path -LiteralPath $LegacyApkPath).Path
+$legacyHash = (Get-FileHash -LiteralPath $legacyApk -Algorithm SHA256).Hash.ToLowerInvariant()
+$expectedLegacyHash = 'c77aff60afcc9ed8df90bc56b4a6a837e6e4e8d2c965d7039ef914685d654ef7'
+Assert-That ($legacyHash -eq $expectedLegacyHash) 'The legacy APK is not the exact published Focaaa 1.7 binary.'
+$legacyBadging = @(& $aapt dump badging $legacyApk 2>&1)
+Assert-That ($LASTEXITCODE -eq 0) 'Could not inspect the legacy APK.'
+$legacyPackage = ($legacyBadging | Where-Object { $_ -match '^package:' } | Select-Object -First 1)
+Assert-That ($legacyPackage -match "name='com.focaaa.app' versionCode='8' versionName='1.7'") 'The legacy APK is not Focaaa 1.7.'
+$previousErrorPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $legacySignature = @(& $signer verify --verbose --print-certs $legacyApk 2>&1)
+} finally { $ErrorActionPreference = $previousErrorPreference }
+Assert-That ($LASTEXITCODE -eq 0) 'The legacy APK signature did not verify.'
+$legacyCertificate = ($legacySignature | Select-String 'certificate SHA-256 digest: ([a-fA-F0-9]{64})' | Select-Object -First 1)
+Assert-That ($null -ne $legacyCertificate -and $legacyCertificate.Matches[0].Groups[1].Value.ToLowerInvariant() -eq $certificateSha) 'The legacy APK uses a different release key.'
+$legacySize = (Get-Item -LiteralPath $legacyApk).Length
+Assert-That ($legacySize -le 25MB) 'The legacy APK exceeds Cloudflare Free static assets 25 MiB file limit.'
+
+$supersededApk = (Resolve-Path -LiteralPath $SupersededApkPath).Path
+$supersededHash = (Get-FileHash -LiteralPath $supersededApk -Algorithm SHA256).Hash.ToLowerInvariant()
+Assert-That ($supersededHash -eq '3acd1888500e20390da8e473d8515cda6a9a3cd562d680f1314caf85b9bf6e3a') 'The archived 1.8 APK is not the exact published binary.'
+$supersededBadging = @(& $aapt dump badging $supersededApk 2>&1)
+Assert-That ($LASTEXITCODE -eq 0) 'Could not inspect the archived APK.'
+$supersededPackage = ($supersededBadging | Where-Object { $_ -match '^package:' } | Select-Object -First 1)
+Assert-That ($supersededPackage -match "name='com.focaaa.app' versionCode='9' versionName='1.8'") 'The archived APK is not Focaaa 1.8.'
+$previousErrorPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $supersededSignature = @(& $signer verify --verbose --print-certs $supersededApk 2>&1)
+} finally { $ErrorActionPreference = $previousErrorPreference }
+Assert-That ($LASTEXITCODE -eq 0) 'The archived APK signature did not verify.'
+$supersededCertificate = ($supersededSignature | Select-String 'certificate SHA-256 digest: ([a-fA-F0-9]{64})' | Select-Object -First 1)
+Assert-That ($null -ne $supersededCertificate -and $supersededCertificate.Matches[0].Groups[1].Value.ToLowerInvariant() -eq $certificateSha) 'The archived APK uses a different release key.'
+Assert-That ((Get-Item -LiteralPath $supersededApk).Length -le 25MB) 'The archived APK exceeds Cloudflare Free static assets 25 MiB file limit.'
+
 $hash = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant()
 $apkName = "focaaa-$versionName.apk"
 $stage = Join-Path $OutputRoot "v$versionCode-$hash"
@@ -120,6 +158,12 @@ Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $apkName) -Algorithm 
 $previousApkName = 'focaaa-1.6.apk'
 Copy-Item -LiteralPath $previousApk -Destination (Join-Path $stage $previousApkName)
 Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $previousApkName) -Algorithm SHA256).Hash.ToLowerInvariant()) -eq $previousHash) 'The staged 1.6 APK differs from the published input.'
+$legacyApkName = 'focaaa-1.7.apk'
+Copy-Item -LiteralPath $legacyApk -Destination (Join-Path $stage $legacyApkName)
+Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $legacyApkName) -Algorithm SHA256).Hash.ToLowerInvariant()) -eq $legacyHash) 'The staged 1.7 APK differs from the published input.'
+$supersededApkName = 'focaaa-1.8.apk'
+Copy-Item -LiteralPath $supersededApk -Destination (Join-Path $stage $supersededApkName)
+Assert-That (((Get-FileHash -LiteralPath (Join-Path $stage $supersededApkName) -Algorithm SHA256).Hash.ToLowerInvariant()) -eq $supersededHash) 'The staged 1.8 APK differs from the published input.'
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 $source = Join-Path $PSScriptRoot '..\release-site'
 $page = [System.IO.File]::ReadAllText((Join-Path $source 'index.html'))
@@ -129,17 +173,22 @@ $page = $page.Replace('{{VERSION}}', $versionName).Replace('{{APK_FILENAME}}', $
     Replace('{{SHA256}}', $hash).Replace('{{RELEASE_STATUS}}', $releaseStatus).
     Replace('{{PREVIOUS_VERSION}}', '1.6').Replace('{{PREVIOUS_APK_FILENAME}}', $previousApkName).
     Replace('{{PREVIOUS_APK_SIZE}}', ($previousSize / 1MB).ToString('0.0', [cultureinfo]::InvariantCulture)).
-    Replace('{{PREVIOUS_SHA256}}', $previousHash)
+    Replace('{{PREVIOUS_SHA256}}', $previousHash).
+    Replace('{{LEGACY_VERSION}}', '1.7').Replace('{{LEGACY_APK_FILENAME}}', $legacyApkName).
+    Replace('{{LEGACY_APK_SIZE}}', ($legacySize / 1MB).ToString('0.0', [cultureinfo]::InvariantCulture)).
+    Replace('{{LEGACY_SHA256}}', $legacyHash).
+    Replace('{{SUPERSEDED_APK_FILENAME}}', $supersededApkName)
 Assert-That (-not ($page -match '\{\{[A-Z_]+\}\}')) 'The download page has an unfilled release placeholder.'
 [System.IO.File]::WriteAllText((Join-Path $stage 'index.html'), $page, $utf8)
 Copy-Item -LiteralPath (Join-Path $source 'privacy.html') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $source 'terms.html') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source 'style.css') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source 'favicon.svg') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source '_headers') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source 'wrangler.jsonc') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $source '.assetsignore') -Destination $stage
-[System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), "$hash  $apkName`n$previousHash  $previousApkName`n", $utf8)
-$manifest = [ordered]@{ packageName = $packageName; versionCode = $versionCode; versionName = $versionName; apk = $apkName; sha256 = $hash; previousApk = $previousApkName; previousSha256 = $previousHash; certificateSha256 = $certificateSha; firebaseAppId = $firebaseAppId; appCheckProvider = 'recaptchaEnterprise'; relayUrl = $relayUrl; earlyAccess = $EarlyAccess.IsPresent; deviceTested = $DeviceTested.IsPresent }
+[System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), "$hash  $apkName`n$supersededHash  $supersededApkName`n$legacyHash  $legacyApkName`n$previousHash  $previousApkName`n", $utf8)
+$manifest = [ordered]@{ packageName = $packageName; versionCode = $versionCode; versionName = $versionName; apk = $apkName; sha256 = $hash; supersededApk = $supersededApkName; supersededSha256 = $supersededHash; legacyApk = $legacyApkName; legacySha256 = $legacyHash; previousApk = $previousApkName; previousSha256 = $previousHash; certificateSha256 = $certificateSha; firebaseAppId = $firebaseAppId; appCheckProvider = 'recaptchaEnterprise'; relayUrl = $relayUrl; earlyAccess = $EarlyAccess.IsPresent; deviceTested = $DeviceTested.IsPresent }
 [System.IO.File]::WriteAllText((Join-Path $stage 'release.json'), ($manifest | ConvertTo-Json) + "`n", $utf8)
 Write-Output "Staged $releaseStatus`: $stage"
 Write-Output "APK SHA-256: $hash"

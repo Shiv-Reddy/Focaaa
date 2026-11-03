@@ -7,6 +7,7 @@ import com.example.focaaa.chat.crypto.CryptoGroupHandle
 import com.example.focaaa.chat.crypto.OpenMlsCryptoProvider
 import com.example.focaaa.chat.data.LiveDraftEditEntity
 import com.example.focaaa.chat.data.RoomConversationRepository
+import com.example.focaaa.chat.pairing.PairingRole
 import com.example.focaaa.chat.relay.RelayDeviceRegistration
 import com.example.focaaa.chat.relay.RelayEndpoint
 import com.google.android.gms.tasks.Tasks
@@ -38,7 +39,8 @@ data class PartnerLiveDraft(val text: String = "", val sharing: Boolean = false,
 class LiveDraftCoordinator(
     context: Context,
     private val repository: RoomConversationRepository,
-    private val conversationId: String
+    private val conversationId: String,
+    private val role: PairingRole
 ) {
     private val appContext = context.applicationContext
     private val provider = OpenMlsCryptoProvider(repository.encryptedCryptoStateStore, repository.pairingVerificationStore)
@@ -70,7 +72,7 @@ class LiveDraftCoordinator(
         }
     } }
 
-    suspend fun start() = withContext(Dispatchers.IO) {
+    suspend fun start(initialText: String = "", autoShare: Boolean = false) = withContext(Dispatchers.IO) {
         if (active) return@withContext
         active = true
         try {
@@ -80,6 +82,7 @@ class LiveDraftCoordinator(
             key = exported.first
             epoch = exported.second
             _available.value = true
+            if (autoShare && role == PairingRole.JOINER) startSharing(initialText)
             retentionJob?.cancel()
             retentionJob = scope.launch {
                 while (active) {
@@ -98,13 +101,13 @@ class LiveDraftCoordinator(
     }
 
     fun startSharing(currentComposerText: String) {
-        if (!active || !_available.value || _sharing.value) return
+        if (role != PairingRole.JOINER || !active || !_available.value || _sharing.value) return
         synchronized(consentLock) { _sharing.value = true }
         commands.trySend(Command.Start(currentComposerText))
     }
 
     fun textChanged(after: String) {
-        if (active && _sharing.value) commands.trySend(Command.Text(after))
+        if (role == PairingRole.JOINER && active && _sharing.value) commands.trySend(Command.Text(after))
     }
 
     fun pauseSharing() {
@@ -184,8 +187,8 @@ class LiveDraftCoordinator(
 
     private suspend fun process(command: Command) {
         when (command) {
-            is Command.Start -> if (active && _sharing.value) beginSession(command.text)
-            is Command.Text -> if (active && _sharing.value) recordText(command.text)
+            is Command.Start -> if (role == PairingRole.JOINER && active && _sharing.value) beginSession(command.text)
+            is Command.Text -> if (role == PairingRole.JOINER && active && _sharing.value) recordText(command.text)
             Command.Pause -> {
                 val sessionId = engine.sessionId
                 if (sessionId != null) {
@@ -236,7 +239,7 @@ class LiveDraftCoordinator(
 
     private fun sendEdit(sessionId: String, sequence: Long, editEpoch: Long, ciphertext: ByteArray) {
         synchronized(consentLock) {
-            if (active && _sharing.value) socket?.send(JSONObject().put("type", "edit").put("sessionId", sessionId)
+            if (role == PairingRole.JOINER && active && _sharing.value) socket?.send(JSONObject().put("type", "edit").put("sessionId", sessionId)
                 .put("sequence", sequence).put("epoch", editEpoch)
                 .put("payloadBase64", Base64.encodeToString(ciphertext, Base64.NO_WRAP)).toString())
         }
@@ -248,7 +251,7 @@ class LiveDraftCoordinator(
     }
 
     private suspend fun replaySession() {
-        if (!_sharing.value) return
+        if (role != PairingRole.JOINER || !_sharing.value) return
         val sessionId = engine.sessionId ?: return
         sendControl("start", sessionId, 0)
         repository.localLiveDraftSessionEdits(conversationId, sessionId).forEach { row ->
@@ -271,19 +274,19 @@ class LiveDraftCoordinator(
                     remoteSession = null
                     _partner.value = PartnerLiveDraft()
                 }
-                "start" -> {
+                "start" -> if (role == PairingRole.INVITER) {
                     val sessionId = value.getString("sessionId")
                     if (value.getLong("sequence") != 0L) return
                     if (remoteSession?.sessionId != sessionId) remoteSession = RemoteDraftSession(sessionId)
                     _partner.value = PartnerLiveDraft(remoteSession?.text.orEmpty(), sharing = true, online = true)
                 }
-                "edit" -> acceptEdit(value)
-                "ack" -> if (value.getString("sessionId") == engine.sessionId) {
+                "edit" -> if (role == PairingRole.INVITER) acceptEdit(value)
+                "ack" -> if (role == PairingRole.JOINER && value.getString("sessionId") == engine.sessionId) {
                     repository.acknowledgeLiveDraftEdits(conversationId, engine.sessionId!!,
                         value.getLong("sequence"))
                 }
-                "resume" -> if (value.getString("sessionId") == engine.sessionId) replaySession()
-                "stop" -> if (value.getString("sessionId") == remoteSession?.sessionId) {
+                "resume" -> if (role == PairingRole.JOINER && value.getString("sessionId") == engine.sessionId) replaySession()
+                "stop" -> if (role == PairingRole.INVITER && value.getString("sessionId") == remoteSession?.sessionId) {
                     remoteSession = null
                     _partner.value = PartnerLiveDraft(online = true)
                 }
@@ -292,6 +295,7 @@ class LiveDraftCoordinator(
     }
 
     private suspend fun acceptEdit(value: JSONObject) {
+        if (role != PairingRole.INVITER) return
         val sessionId = value.getString("sessionId")
         val sequence = value.getLong("sequence")
         val frameEpoch = value.getLong("epoch")

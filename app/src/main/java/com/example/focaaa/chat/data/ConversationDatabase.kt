@@ -130,7 +130,8 @@ data class PairingSessionEntity(
     val ratchetTree: ByteArray?,
     val verificationCode: String?,
     val localControlQueued: Boolean,
-    val relayActive: Boolean
+    val relayActive: Boolean,
+    @ColumnInfo(defaultValue = "0") val liveDraftConsent: Boolean = false
 ) {
     companion object {
         const val CURRENT_SESSION = "current"
@@ -235,6 +236,9 @@ interface ConversationDao {
 
     @Query("DELETE FROM live_draft_edits WHERE atMillis < :beforeMillis")
     suspend fun purgeExpiredLiveDraftEdits(beforeMillis: Long)
+
+    @Query("DELETE FROM live_draft_edits WHERE conversationId = :conversationId AND direction = 'REMOTE'")
+    suspend fun deleteRemoteLiveDraftHistory(conversationId: String)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPairingQrConsumedStep(step: PairingQrConsumedStepEntity): Long
@@ -526,7 +530,7 @@ interface ConversationDao {
         RelayEnvelopeEntity::class,
         PairingSessionEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class ConversationDatabase : RoomDatabase() {

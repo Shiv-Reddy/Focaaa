@@ -13,7 +13,7 @@
   <div class="site-shell">
     <header class="site-header">
       <a class="brand" href="/" aria-label="Focaaa home"><span class="brand-mark" aria-hidden="true"><span></span></span><span>focaaa<span class="brand-period">.</span></span></a>
-      <nav aria-label="Main navigation"><a href="#the-app">The app</a><a href="#install">Install</a><a href="privacy.html">Privacy</a></nav>
+      <nav aria-label="Main navigation"><a href="#the-app">The app</a><a href="#install">Install</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a></nav>
     </header>
     <main>
       <section class="hero" aria-labelledby="hero-title">
@@ -25,7 +25,7 @@
             <a class="download" href="{{APK_FILENAME}}" download><span class="download-icon" aria-hidden="true">↓</span><span>Download for Android</span></a>
             <span class="download-meta">Version {{VERSION}}<br>{{APK_SIZE}} MiB · Android 8+</span>
           </div>
-          <p class="preview-note">Version {{VERSION}} is an early access build with optional live drafts. <a href="{{PREVIOUS_APK_FILENAME}}" download>Get stable {{PREVIOUS_VERSION}} instead</a>.</p>
+          <p class="preview-note">Version {{VERSION}} is an early access build with consent-based one-way live drafts. <a href="{{PREVIOUS_APK_FILENAME}}" download>Get stable {{PREVIOUS_VERSION}} instead</a>.</p>
         </div>
         <div class="focus-stage" id="the-app" aria-label="Illustration of Focaaa's focus timer and task list">
           <div class="stage-top"><span>Focaaa / Today</span><span class="stage-date">A little at a time.</span></div>
@@ -46,14 +46,16 @@
       </section>
       <section class="install" id="install" aria-labelledby="install-title">
         <div class="install-main"><p class="section-kicker">Direct download</p><h2 id="install-title">Choose your build</h2><p>Both are signed Android APKs. Install from your phone’s browser; Android may ask you to allow installation from that browser.</p>
-          <div class="version-choice"><span class="version-tag">New · early access</span><strong>Focaaa {{VERSION}}</strong><p>Includes optional live draft sharing in private chat. When you choose to turn it on, your partner can see edits before sending, including deleted text. Edits stay viewable for 24 hours on both phones.</p><a class="install-link" href="{{APK_FILENAME}}" download>Download {{VERSION}} <span aria-hidden="true">↗</span></a><small>{{APK_SIZE}} MiB · SHA-256 <code>{{SHA256}}</code></small></div>
+          <div class="version-choice"><span class="version-tag">New · early access</span><strong>Focaaa {{VERSION}}</strong><p>The invite participant checks an initially unchecked consent box before joining. In private chat, their unsent and deleted message edits can appear for the invite creator; the creator’s drafts are never shared. The participant can pause or turn sharing off, including when the relay is temporarily unreachable. Two phones are needed to use this feature.</p><a class="install-link" href="{{APK_FILENAME}}" download>Download {{VERSION}} <span aria-hidden="true">↗</span></a><small>{{APK_SIZE}} MiB · SHA-256 <code>{{SHA256}}</code></small></div>
+          <div class="version-choice"><span class="version-tag">Previous build</span><strong>Focaaa {{LEGACY_VERSION}}</strong><p>The original opt-in live-draft build. Its earlier two-way draft behavior is restricted by the current relay, so choose {{VERSION}} for the new role controls. Ordinary messaging remains available.</p><a class="install-link" href="{{LEGACY_APK_FILENAME}}" download>Download {{LEGACY_VERSION}} <span aria-hidden="true">↗</span></a><small>{{LEGACY_APK_SIZE}} MiB · SHA-256 <code>{{LEGACY_SHA256}}</code></small></div>
           <div class="version-choice"><span class="version-tag stable">Stable build</span><strong>Focaaa {{PREVIOUS_VERSION}}</strong><p>The existing focus app and private chat, without live draft sharing. This is the exact previously published APK.</p><a class="install-link" href="{{PREVIOUS_APK_FILENAME}}" download>Download {{PREVIOUS_VERSION}} <span aria-hidden="true">↗</span></a><small>{{PREVIOUS_APK_SIZE}} MiB · SHA-256 <code>{{PREVIOUS_SHA256}}</code></small></div>
+          <p class="archive-note">Version 1.8 is archived after a consent-withdrawal fix in {{VERSION}}. <a href="{{SUPERSEDED_APK_FILENAME}}" download>Download the archived 1.8 APK</a> if needed; update to {{VERSION}} for the corrected behavior.</p>
         </div>
-        <div class="install-proof"><span class="proof-label">Verify your download</span><p>The checksum file lists both APKs. Compare the SHA-256 for the version you downloaded before installing.</p><a href="SHA256SUMS.txt">Download checksum file</a></div>
+        <div class="install-proof"><span class="proof-label">Verify your download</span><p>The checksum file lists all available APKs. Compare the SHA-256 for the version you downloaded before installing.</p><a href="SHA256SUMS.txt">Download checksum file</a></div>
       </section>
-      <p class="honesty">Focaaa can reduce casual exposure of private activity, but Android can still show that the app is installed or used. Read the <a href="privacy.html">privacy notice</a> for details.</p>
+      <p class="honesty">Focaaa can reduce casual exposure of private activity, but Android can still show that the app is installed or used. Read the <a href="privacy.html">privacy notice</a> and <a href="terms.html">terms</a> for details.</p>
     </main>
-    <footer><span>© Focaaa · Version {{VERSION}}</span><div><a href="privacy.html">Privacy</a><a href="mailto:xlr8beast2h@gmail.com">Support</a></div></footer>
+    <footer><span>© Focaaa · Version {{VERSION}}</span><div><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="mailto:xlr8beast2h@gmail.com">Support</a></div></footer>
   </div>
 </body>
 </html>

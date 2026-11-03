@@ -7,7 +7,7 @@ import {
 } from './pairing.ts';
 import { sendEnvelope, fetchPendingEnvelopes, acknowledgeEnvelopes, markRead, fetchMessageStatuses, revokeDevice, purgeExpired } from './messages.ts';
 import { beginMediaUpload, uploadMediaChunk, completeMediaUpload, fetchMediaManifest, fetchMediaChunk, cancelMediaUpload } from './media.ts';
-import { closeLiveDraftRoom, connectLiveDraft, LiveDraftRoom } from './live-draft.ts';
+import { closeLiveDraftRoom, connectLiveDraft, setLiveDraftConsent, LiveDraftRoom } from './live-draft.ts';
 export { LiveDraftRoom };
 
 type Authenticator = (request: Request, env: Env) => Promise<string>;
@@ -73,6 +73,14 @@ export function createRelayHandler(dependencies: { authenticate: Authenticator; 
         case 'publishPairingWelcome': result = await publishPairingWelcome(env, uid, data, now); break;
         case 'fetchPairingWelcome': result = await fetchPairingWelcome(env, uid, data, now); break;
         case 'confirmPairing': result = await confirmPairing(env, uid, data, now); break;
+        case 'setLiveDraftConsent': {
+          result = await setLiveDraftConsent(env, uid, data, now);
+          if (!(result as { enabled: boolean }).enabled) {
+            try { await closeLiveDraftRoom(env, data.conversationId as string); }
+            catch { /* Every subsequent frame rechecks the withdrawn consent. */ }
+          }
+          break;
+        }
         case 'revokePairing': {
           result = await revokePairing(env, uid, data, now);
           const pairId = data.conversationId;

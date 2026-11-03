@@ -59,6 +59,10 @@ export async function joinPairingInvite(env: Env, uid: string, data: Data, now: 
   const token = requiredString(data, 'token', 32);
   if (!INVITE_TOKEN.test(token)) fail(400, 'invalid-argument', 'The invite token is invalid.');
   const keyPackage = base64Of(data, 'keyPackageBase64', 16 * 1024);
+  if (data.liveDraftConsent !== undefined && typeof data.liveDraftConsent !== 'boolean') {
+    fail(400, 'invalid-argument', 'Live draft consent is invalid.');
+  }
+  const liveDraftConsent = data.liveDraftConsent === true;
   await requireDevice(env.DB, uid, deviceId);
   await rateLimit(env.DB, uid, 'joinInvite', 10, now);
   const hash = await sha256Hex(token);
@@ -84,10 +88,12 @@ export async function joinPairingInvite(env: Env, uid: string, data: Data, now: 
       AND EXISTS (SELECT 1 FROM devices d WHERE d.uid = ? AND d.device_id = ? AND d.revoked = 0)`)
       .bind(pairId, hash, now, uid, deviceId),
     env.DB.prepare(`INSERT INTO pairs(pair_id, owner_uid, owner_device_id, joiner_uid, joiner_device_id,
-      status, pairing_status, joiner_key_package_base64, welcome_expires_at_ms, created_at_ms, updated_at_ms)
-      SELECT ?, owner_uid, owner_device_id, ?, ?, 'pending-confirmation', 'key-package-ready', ?, expires_at_ms, ?, ?
+      status, pairing_status, joiner_key_package_base64, welcome_expires_at_ms, created_at_ms, updated_at_ms,
+      live_draft_consent, live_draft_consent_at_ms)
+      SELECT ?, owner_uid, owner_device_id, ?, ?, 'pending-confirmation', 'key-package-ready', ?, expires_at_ms, ?, ?, ?, ?
       FROM invites WHERE token_hash = ? AND pair_id = ? AND consumed = 1`)
-      .bind(pairId, uid, deviceId, keyPackage, now, now, hash, pairId)
+      .bind(pairId, uid, deviceId, keyPackage, now, now, liveDraftConsent ? 1 : 0,
+        liveDraftConsent ? now : null, hash, pairId)
   ]);
   if (results[0].meta.changes !== 1 || results[1].meta.changes !== 1) {
     fail(412, 'failed-precondition', 'This invite is expired or already used.');
