@@ -63,8 +63,8 @@ android {
         applicationId = "com.example.focaaa"
         minSdk = 26
         targetSdk = 37
-        versionCode = 10
-        versionName = "1.8.1"
+        versionCode = 11
+        versionName = "1.8.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
