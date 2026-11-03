@@ -31,7 +31,7 @@
             android:layout_gravity="end"
             android:paddingTop="1dp"
             android:textColor="@color/focaaa_chat_meta"
-            android:textSize="10sp" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <TextView android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />

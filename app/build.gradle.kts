@@ -41,6 +41,7 @@ val releaseSigningValues = releaseSigningNames.associateWith { name ->
     providers.environmentVariable(name).orNull?.takeIf(String::isNotBlank)
 }
 val releaseSigningEnabled = releaseSigningValues.values.any { it != null }
+val focaaaVersionName = "2.0.0"
 if (releaseSigningEnabled) {
     check(releaseSigningValues.values.all { it != null }) {
         "Set all four FOCAAA_RELEASE_* environment variables to sign a release."
@@ -63,8 +64,9 @@ android {
         applicationId = "com.example.focaaa"
         minSdk = 26
         targetSdk = 37
-        versionCode = 13
-        versionName = "1.9"
+        versionCode = 14
+        versionName = focaaaVersionName
+        resValue("string", "focaaa_version_name", focaaaVersionName)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {

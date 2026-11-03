@@ -17,9 +17,9 @@ Photos are limited to 2 MiB and MP4 videos to 10 MiB. Encrypted relay media copi
 
 ## Current release
 
-Version **1.9** (version code 13) restores the 1.6 chat behavior and replaces later draft sharing with a content-free typing indicator. It retains the direct-distribution App Check key introduced in **1.8.2**. Older APKs have been withdrawn from the download page: versions before 1.8.2 have an obsolete App Check key, and 1.7 through 1.8.3 include the retired draft feature. Update without clearing app data. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
+Version **2.0.0** (version code 14) keeps the 1.6-style private chat and temporary, content-free typing indicator. It preserves the existing direct-distribution App Check setup. Chat now leaves the scroll position alone while someone reads older messages, releases typing-client resources when chat closes, and makes notification timestamps easier to read. Older draft-enabled APKs remain withdrawn from the download page. Update without clearing app data. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release. See [the changelog](CHANGELOG.md) for release details.
 
-Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. The new typing indicator requires a two-phone check before it can be called verified. The release signing key and password still need separate offline backups. This project has not received an independent security audit.
+Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. Version 2.0.0 still needs a two-phone typing-indicator check and final upgrade check on the second phone. The release signing key and password still need separate offline backups. This project has not received an independent security audit.
 
 ## Project layout
 

@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +29,7 @@ import org.json.JSONObject
 class TypingCoordinator(context: Context, private val conversationId: String) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val client = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).build()
+    private val client = sharedClient
     private val _partnerTyping = MutableStateFlow(false)
     val partnerTyping: StateFlow<Boolean> = _partnerTyping
     @Volatile private var active = false
@@ -39,7 +40,7 @@ class TypingCoordinator(context: Context, private val conversationId: String) {
     private var idle: Job? = null
     private var peerExpiry: Job? = null
     private var retryMillis = 1_000L
-    private var lastActiveSentAt = 0L
+    @Volatile private var lastActiveSentAt = 0L
 
     fun start() {
         if (active) return
@@ -71,6 +72,12 @@ class TypingCoordinator(context: Context, private val conversationId: String) {
         _partnerTyping.value = false
         socket?.close(1000, "Chat closed")
         socket = null
+    }
+
+    /** Release this screen's jobs; the shared HTTP client is reused by later chats. */
+    fun dispose() {
+        stop()
+        scope.cancel()
     }
 
     private suspend fun connect() {
@@ -145,5 +152,9 @@ class TypingCoordinator(context: Context, private val conversationId: String) {
         if (value && now - lastActiveSentAt < 1_500L) return
         if (value) lastActiveSentAt = now else lastActiveSentAt = 0L
         socket?.send("{\"type\":\"typing\",\"active\":$value}")
+    }
+
+    private companion object {
+        val sharedClient = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).build()
     }
 }

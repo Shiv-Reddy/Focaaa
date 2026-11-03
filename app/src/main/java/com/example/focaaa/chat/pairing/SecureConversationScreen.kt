@@ -143,7 +143,7 @@ fun SecureConversationScreen(
             try { kotlinx.coroutines.awaitCancellation() } finally { typing.stop() }
         }
     }
-    DisposableEffect(typing) { onDispose { typing?.stop() } }
+    DisposableEffect(typing) { onDispose { typing?.dispose() } }
     DisposableEffect(conversationId, lifecycleOwner, currentServicePair) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -245,8 +245,15 @@ fun SecureConversationScreen(
         }
     }
 
+    var previousMessageCount by remember(conversationId) { mutableIntStateOf(0) }
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+        val oldCount = previousMessageCount
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+        val followingLatest = oldCount == 0 || lastVisible >= oldCount - 2
+        previousMessageCount = messages.size
+        if (messages.size > oldCount && followingLatest) {
+            listState.animateScrollToItem(messages.lastIndex)
+        }
     }
 
     fun submitDraft() {
