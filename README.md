@@ -16,9 +16,9 @@ Photos are limited to 2 MiB and MP4 videos to 10 MiB. Encrypted relay media copi
 
 ## Current release
 
-Version **1.5** (version code 6) is an early-access direct APK. The signed app and download page share a teal and mist visual theme. The download page provides the APK checksum. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
+Version **1.6** (version code 7) is an early-access direct APK. The signed app and download page share a teal and mist visual theme. The download page provides the APK checksum. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
 
-The Android unit suite, release lint, signed APK build, and backend tests passed. The exact 1.5 build was installed over the existing Samsung release app without clearing data; repeated sends released the composer and chat kept refreshing. Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. **The exact 1.5 build still needs a two-phone delivery check.** The release signing key and password also need separate offline backups. This project has not received an independent security audit.
+The Android unit suite, release lint, signed APK build, and backend tests passed. The exact 1.6 build was installed over the existing Samsung release app without clearing data; the three-tap tile opened the notification chat and Reply promptly with the app both open and closed. Version 1.5 also passed repeated send and refresh checks on Samsung. Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. **The exact 1.6 build still needs a two-phone delivery check.** The release signing key and password also need separate offline backups. This project has not received an independent security audit.
 
 ## Project layout
 

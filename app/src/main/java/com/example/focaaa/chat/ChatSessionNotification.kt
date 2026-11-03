@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -123,18 +124,33 @@ internal object ChatSessionNotification {
                     return@launch
                 }
                 if (requestedId != null) selectContact(context, contact.conversationId)
-                val status = try {
-                    PairingFlowCoordinator(context, repository, sessionId = contact.conversationId)
-                        .syncActiveConversation(contact.conversationId)
-                    null
-                } catch (_: Exception) {
-                    "Showing saved messages. Connection unavailable."
-                }
                 if (boundNotificationContact(repository.observeActiveContacts().first(), contact.conversationId, selectedId(context)) == null) {
                     dismiss(context)
                     return@launch
                 }
-                post(context, contact, repository.messagesFor(contact.conversationId).first(), status)
+                var savedMessages: List<ConversationMessage> = emptyList()
+                openNotificationPanel(
+                    scope = applicationScope,
+                    showSaved = {
+                        savedMessages = repository.messagesFor(contact.conversationId).first()
+                        post(context, contact, savedMessages, null)
+                    },
+                    refreshFromRelay = {
+                        PairingFlowCoordinator(context, repository, sessionId = contact.conversationId)
+                            .syncActiveConversation(contact.conversationId)
+                    },
+                    showRefreshed = {
+                        if (isPosted(context) && boundNotificationContact(
+                                repository.observeActiveContacts().first(), contact.conversationId, selectedId(context)
+                            ) != null
+                        ) {
+                            val refreshed = repository.messagesFor(contact.conversationId).first()
+                            if (refreshed != savedMessages) post(context, contact, refreshed, null)
+                        }
+                    }
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
                 showHint(context, "Private storage is unavailable.")
             } finally {
