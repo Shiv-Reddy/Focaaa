@@ -1,6 +1,6 @@
 # Focaaa free relay
 
-This Worker stores pairing records and opaque encrypted message envelopes in Cloudflare D1. It verifies Firebase anonymous Authentication and Firebase App Check on every private request. The Worker cannot read message plaintext or the Focaaa PIN.
+This Worker stores pairing records and opaque encrypted message envelopes in Cloudflare D1. It verifies Firebase anonymous Authentication and Firebase App Check on every private request. The Worker cannot read message plaintext or the Focaaa PIN. Its authenticated WebSocket forwards only a temporary boolean typing status between active pair members; it rejects draft text and keeps no typing history.
 
 ## Free-plan behavior
 

@@ -11,15 +11,15 @@ An Android focus timer and task list with an optional, PIN-protected private con
 - Private text, photos, and short MP4 videos use the encrypted conversation. This release allows one active partner.
 - A user-added Quick Settings tile can open a notification-panel conversation with inline Reply. Generic focus reminders contain no sender or message text.
 - Conversation history stays encrypted on the phone. Optional encrypted history backups restore as read-only records; media files and active pairing keys are not included.
-- In 1.8.3, the invite participant checks a short, clearly labeled box before joining. The invite creator can see that participant's unsent and deleted message edits while their private chat is open; the participant cannot see the creator's drafts. Sharing starts automatically whenever the consenting participant opens that chat. The participant can stop sharing without deleting the chat. Edits remain viewable locally for 24 hours.
+- A temporary typing indicator appears while your partner is composing in an open private chat. It sends no draft text or edit history.
 
 Photos are limited to 2 MiB and MP4 videos to 10 MiB. Encrypted relay media copies expire after seven days. The app supports Android 8.0 (API 26) and newer.
 
 ## Current release
 
-Version **1.8.3** (version code 12) is the current early-access APK. It keeps the direct-distribution App Check key introduced in **1.8.2** and shortens the joiner's consent sentence while retaining a way to withdraw sharing. Both 1.8.3 and the exact signed 1.8.2 APK can authenticate to the online relay. Exact signed **1.8.1**, **1.8**, **1.7**, and **1.6** binaries remain available as archives, but their embedded App Check key is no longer accepted for online pairing or chat. Update without clearing app data. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
+Version **1.9** (version code 13) restores the 1.6 chat behavior and replaces later draft sharing with a content-free typing indicator. It retains the direct-distribution App Check key introduced in **1.8.2**. Older APKs have been withdrawn from the download page: versions before 1.8.2 have an obsolete App Check key, and 1.7 through 1.8.3 include the retired draft feature. Update without clearing app data. The Cloudflare relay is designed for its free tier; no paid backend plan is required for this release.
 
-The Android unit suite, release lint, Rust tests, and backend tests passed during development. **The one-way live draft exchange still needs a two-phone check before it can be called verified.** Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. The release signing key and password still need separate offline backups. This project has not received an independent security audit.
+Earlier signed builds passed two-phone pairing, messaging, media, and notification checks. The new typing indicator requires a two-phone check before it can be called verified. The release signing key and password still need separate offline backups. This project has not received an independent security audit.
 
 ## Project layout
 
@@ -27,7 +27,7 @@ The Android unit suite, release lint, Rust tests, and backend tests passed durin
 | --- | --- |
 | [`app/`](app/) | Kotlin, Jetpack Compose, local encrypted storage, pairing and chat |
 | [`crypto/openmls/`](crypto/openmls/) | Rust/OpenMLS Android integration |
-| [`worker/`](worker/) | Cloudflare Worker, D1 ciphertext relay, and pair-scoped live-draft WebSocket |
+| [`worker/`](worker/) | Cloudflare Worker, D1 ciphertext relay, and pair-scoped typing-status WebSocket |
 | [`release-site/`](release-site/) | Static direct-download, privacy, and terms pages |
 | [`scripts/`](scripts/) | Local release build, staging and key-backup checks |
 | [`docs/history-backup.md`](docs/history-backup.md) | Backup and restore behavior |

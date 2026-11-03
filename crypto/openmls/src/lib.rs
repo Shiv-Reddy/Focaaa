@@ -456,18 +456,6 @@ fn group_fingerprint_material(snapshot: &[u8]) -> Result<Vec<u8>, &'static str> 
     ])
 }
 
-fn live_draft_key(snapshot: &[u8]) -> Result<Vec<u8>, &'static str> {
-    let (provider, _, group) = load_snapshot_group(snapshot)?;
-    if group.members().count() != 2 {
-        return Err("live_draft_requires_two_members");
-    }
-    let key = group
-        .export_secret(&provider.crypto, "focaaa-live-draft-v1", b"draft-frames", 32)
-        .map_err(|_| "live_draft_export_failed")?;
-    let epoch = group.epoch().as_u64().to_be_bytes();
-    pack_native_result(&[&key, &epoch])
-}
-
 fn encrypt_message(snapshot: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, &'static str> {
     if plaintext.is_empty() || plaintext.len() > 48 * 1024 {
         return Err("plaintext_length_invalid");
@@ -743,23 +731,6 @@ pub extern "system" fn Java_com_example_focaaa_chat_crypto_NativeOpenMls_fingerp
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_focaaa_chat_crypto_NativeOpenMls_liveDraftKeyNative(
-    mut env: JNIEnv,
-    _this: JObject,
-    snapshot: JByteArray,
-) -> jbyteArray {
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        let snapshot = native_read_bytes(&mut env, &snapshot)?;
-        live_draft_key(&snapshot)
-    }));
-    match result {
-        Ok(Ok(bytes)) => native_return_bytes(&mut env, &bytes),
-        Ok(Err(code)) => native_throw(&mut env, code),
-        Err(_) => native_throw(&mut env, "native_live_draft_export_panicked"),
-    }
-}
-
-#[no_mangle]
 pub extern "system" fn Java_com_example_focaaa_chat_crypto_NativeOpenMls_encryptNative(
     mut env: JNIEnv,
     _this: JObject,
@@ -982,11 +953,6 @@ pub fn run_two_member_snapshot_probe() -> Result<String, &'static str> {
     let invitee_snapshot = encode_snapshot(&invitee_id, invitee_epoch, invitee_provider.storage())?;
     let (restored_inviter_provider, _, _) = provider_from_snapshot(&inviter_snapshot)?;
     let (restored_invitee_provider, _, _) = provider_from_snapshot(&invitee_snapshot)?;
-    let inviter_draft = live_draft_key(&inviter_snapshot)?;
-    let invitee_draft = live_draft_key(&invitee_snapshot)?;
-    if inviter_draft != invitee_draft {
-        return Err("live_draft_export_mismatch");
-    }
     let mut restored_inviter = MlsGroup::load(restored_inviter_provider.storage(), &inviter_id)
         .map_err(|_| "inviter_group_reload_failed")?
         .ok_or("inviter_group_state_missing")?;
@@ -1062,7 +1028,7 @@ pub fn run_two_member_snapshot_probe() -> Result<String, &'static str> {
         _ => return Err("inviter_plaintext_mismatch"),
     }
 
-    Ok("openmls=0.9.2; two_member_welcome=ok; snapshot_restore=ok; signing_key_restore=ok; inviter_to_invitee=ok; invitee_to_inviter=ok; draft_export=ok; storage=memory_only".to_owned())
+    Ok("openmls=0.9.2; two_member_welcome=ok; snapshot_restore=ok; signing_key_restore=ok; inviter_to_invitee=ok; invitee_to_inviter=ok; storage=memory_only".to_owned())
 }
 
 #[no_mangle]
@@ -1177,12 +1143,6 @@ pub extern "system" fn Java_com_example_focaaa_chat_crypto_OpenMlsCompatibilityP
 #[cfg(test)]
 mod snapshot_format_tests {
     use super::*;
-
-    #[test]
-    fn two_members_export_the_same_live_draft_key() {
-        let result = run_two_member_snapshot_probe().unwrap();
-        assert!(result.contains("draft_export=ok"), "{result}");
-    }
 
     #[test]
     fn snapshot_restores_the_same_group() {

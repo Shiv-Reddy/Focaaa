@@ -34,14 +34,13 @@ function setup() {
   return { call, hints, DB };
 }
 
-async function pair(fixture, inviteToken = token, liveDraftConsent = false) {
+async function pair(fixture, inviteToken = token) {
   const { call } = fixture;
   assert.equal((await call('owner', 'registerDevice', { deviceId: idA, fcmToken: 'fcm-a' })).status, 200);
   assert.equal((await call('joiner', 'registerDevice', { deviceId: idB, fcmToken: 'fcm-b' })).status, 200);
   const invite = await call('owner', 'createPairingInvite', { deviceId: idA, token: inviteToken });
   assert.equal(invite.status, 200);
-  const joined = await call('joiner', 'joinPairingInvite', { deviceId: idB, token: inviteToken,
-    keyPackageBase64: keyPackage, liveDraftConsent });
+  const joined = await call('joiner', 'joinPairingInvite', { deviceId: idB, token: inviteToken, keyPackageBase64: keyPackage });
   assert.equal(joined.status, 200);
   assert.equal(joined.result.status, 'pending-confirmation');
   const conversationId = joined.result.conversationId;
@@ -54,19 +53,6 @@ async function pair(fixture, inviteToken = token, liveDraftConsent = false) {
   assert.equal((await call('joiner', 'confirmPairing', { deviceId: idB, conversationId })).result.active, true);
   return conversationId;
 }
-
-test('join choice is stored on the pair and legacy joins leave live drafts off', async () => {
-  const without = setup();
-  const withConsent = setup();
-  try {
-    const oldPair = await pair(without);
-    const optedPair = await pair(withConsent, token, true);
-    assert.equal(without.DB.prepare('SELECT live_draft_consent FROM pairs WHERE pair_id = ?')
-      .bind(oldPair).first().live_draft_consent, 0);
-    assert.equal(withConsent.DB.prepare('SELECT live_draft_consent FROM pairs WHERE pair_id = ?')
-      .bind(optedPair).first().live_draft_consent, 1);
-  } finally { without.DB.close(); withConsent.DB.close(); }
-});
 
 test('single-use invite and both confirmations create one active pair', async () => {
   const f = setup();

@@ -21,8 +21,7 @@ interface RelayGateway {
     fun ensureAnonymousSession(): Task<Unit>
     fun registerDevice(deviceId: String, fcmToken: String): Task<RelayResult>
     fun createPairingInvite(deviceId: String, token: String): Task<RelayResult>
-    fun joinPairingInvite(deviceId: String, token: String, keyPackage: ByteArray, liveDraftConsent: Boolean): Task<RelayResult>
-    fun setLiveDraftConsent(deviceId: String, conversationId: String, enabled: Boolean): Task<RelayResult>
+    fun joinPairingInvite(deviceId: String, token: String, keyPackage: ByteArray): Task<RelayResult>
     fun fetchPairingRequest(deviceId: String, inviteToken: String): Task<RelayResult>
     fun publishPairingWelcome(deviceId: String, conversationId: String, welcome: ByteArray, ratchetTree: ByteArray): Task<RelayResult>
     fun fetchPairingWelcome(deviceId: String, conversationId: String): Task<RelayResult>
@@ -98,12 +97,8 @@ class WorkerRelayGateway(
 
     override fun registerDevice(deviceId: String, fcmToken: String) = call("registerDevice", mapOf("deviceId" to deviceId, "fcmToken" to fcmToken))
     override fun createPairingInvite(deviceId: String, token: String) = call("createPairingInvite", mapOf("deviceId" to deviceId, "token" to token))
-    override fun joinPairingInvite(deviceId: String, token: String, keyPackage: ByteArray, liveDraftConsent: Boolean) = call("joinPairingInvite", mapOf(
-        "deviceId" to deviceId, "token" to token, "keyPackageBase64" to encode(keyPackage, MAX_KEY_PACKAGE_BYTES),
-        "liveDraftConsent" to liveDraftConsent))
-    override fun setLiveDraftConsent(deviceId: String, conversationId: String, enabled: Boolean) =
-        call("setLiveDraftConsent", mapOf("deviceId" to deviceId, "conversationId" to conversationId,
-            "enabled" to enabled))
+    override fun joinPairingInvite(deviceId: String, token: String, keyPackage: ByteArray) = call("joinPairingInvite", mapOf(
+        "deviceId" to deviceId, "token" to token, "keyPackageBase64" to encode(keyPackage, MAX_KEY_PACKAGE_BYTES)))
     override fun fetchPairingRequest(deviceId: String, inviteToken: String) = call("fetchPairingRequest", mapOf("deviceId" to deviceId, "token" to inviteToken))
     override fun publishPairingWelcome(deviceId: String, conversationId: String, welcome: ByteArray, ratchetTree: ByteArray) =
         call("publishPairingWelcome", mapOf("deviceId" to deviceId, "conversationId" to conversationId,

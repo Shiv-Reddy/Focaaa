@@ -36,7 +36,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -93,6 +92,7 @@ import com.example.focaaa.chat.media.MediaKind
 import com.example.focaaa.chat.media.MediaMessageCodec
 import com.example.focaaa.chat.relay.RelayServiceGeneration
 import com.example.focaaa.chat.relay.PairEndedException
+import com.example.focaaa.chat.typing.TypingCoordinator
 import com.example.focaaa.ui.theme.FocaaaPalette
 import java.time.Instant
 import java.time.LocalDate
@@ -103,9 +103,6 @@ import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.awaitCancellation
-import com.example.focaaa.chat.live.LiveDraftCoordinator
-import com.example.focaaa.chat.live.PartnerLiveDraft
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
@@ -135,56 +132,18 @@ fun SecureConversationScreen(
     val context = LocalContext.current
     val lifecycleOwner = context as LifecycleOwner
     val currentServicePair = remember(conversationId, isRestored) { !isRestored && RelayServiceGeneration.isCurrent(context, conversationId) }
-    var pairingSession by remember(conversationId) { mutableStateOf<PairingSession?>(null) }
-    var draft by remember { mutableStateOf("") }
-    var legacyConsentChecked by remember { mutableStateOf(false) }
-    var consentBusy by remember { mutableStateOf(false) }
-    LaunchedEffect(conversationId, currentServicePair) {
-        if (currentServicePair) {
-            val saved = repository.pairingSessionStore.read(conversationId)
-            if (saved?.role == PairingRole.JOINER) repository.deleteRemoteLiveDraftHistory(conversationId)
-            pairingSession = saved
-            if (saved?.role == PairingRole.JOINER && saved.stage == PairingStage.ACTIVE &&
-                !saved.liveDraftConsent) {
-                // Also finishes a consent withdrawal that could not reach the relay while offline.
-                try {
-                    PairingFlowCoordinator(context, repository, sessionId = conversationId)
-                        .setLiveDraftConsent(conversationId, false)
-                } catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { /* No local sharing occurs while the saved choice is off. */ }
-            }
-        }
+    val typing = remember(conversationId, currentServicePair) {
+        if (currentServicePair) TypingCoordinator(context, conversationId) else null
     }
-    val role = pairingSession?.role
-    val draftConsent = pairingSession?.liveDraftConsent == true
-    val liveDraft = remember(conversationId, currentServicePair, role, draftConsent) {
-        if (currentServicePair && (role == PairingRole.INVITER || (role == PairingRole.JOINER && draftConsent))) {
-            LiveDraftCoordinator(context, repository, conversationId, requireNotNull(role))
-        } else null
-    }
-    val sharing = liveDraft?.sharing?.collectAsState()?.value ?: false
-    val liveAvailable = liveDraft?.available?.collectAsState()?.value ?: false
-    val partnerDraft = liveDraft?.partner?.collectAsState()?.value ?: PartnerLiveDraft()
-    val historyFlow = remember(conversationId) { repository.liveDraftHistory(conversationId, "REMOTE") }
-    val remoteDraftHistory by historyFlow.collectAsState(initial = emptyList())
-    val localHistoryFlow = remember(conversationId) { repository.liveDraftHistory(conversationId, "LOCAL") }
-    val localDraftHistory by localHistoryFlow.collectAsState(initial = emptyList())
-    val recentDraftHistory = remember(remoteDraftHistory, localDraftHistory, role) {
-        when (role) {
-            PairingRole.INVITER -> remoteDraftHistory
-            PairingRole.JOINER -> localDraftHistory
-            null -> emptyList()
-        }
-    }
-    var showDraftHistory by remember { mutableStateOf(false) }
-    DisposableEffect(liveDraft) { onDispose { liveDraft?.dispose() } }
-    LaunchedEffect(liveDraft, lifecycleOwner, role, draftConsent) {
-        if (liveDraft == null) return@LaunchedEffect
+    val partnerTyping = typing?.partnerTyping?.collectAsState()?.value ?: false
+    LaunchedEffect(typing, lifecycleOwner) {
+        if (typing == null) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            liveDraft.start(draft, autoShare = role == PairingRole.JOINER && draftConsent)
-            try { awaitCancellation() } finally { liveDraft.stop() }
+            typing.start()
+            try { kotlinx.coroutines.awaitCancellation() } finally { typing.stop() }
         }
     }
+    DisposableEffect(typing) { onDispose { typing?.stop() } }
     DisposableEffect(conversationId, lifecycleOwner, currentServicePair) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -207,6 +166,7 @@ fun SecureConversationScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
+    var draft by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var connectionEnded by remember(conversationId) { mutableStateOf(false) }
@@ -297,8 +257,8 @@ fun SecureConversationScreen(
             status = null
             try {
                 val savedLocally = sendMessage(outgoing)
-                liveDraft?.textChanged("")
                 draft = ""
+                typing?.sent()
                 status = if (savedLocally) null else "Saved on this phone. Delivery could not be confirmed."
             } catch (ended: PairEndedException) {
                 connectionEnded = true
@@ -312,89 +272,30 @@ fun SecureConversationScreen(
         }
     }
 
-    fun changeDraftConsent(enabled: Boolean) {
-        if (consentBusy || role != PairingRole.JOINER) return
-        if (!enabled) liveDraft?.pauseSharing()
-        consentBusy = true
-        scope.launch {
-            try {
-                if (!enabled) {
-                    val stopped = requireNotNull(pairingSession).copy(liveDraftConsent = false)
-                    repository.pairingSessionStore.write(conversationId, stopped)
-                    pairingSession = stopped
-                }
-                val updated = PairingFlowCoordinator(context, repository, sessionId = conversationId)
-                    .setLiveDraftConsent(conversationId, enabled)
-                pairingSession = updated
-                legacyConsentChecked = false
-                status = if (enabled) "Live draft sharing is on." else "Live draft sharing is off."
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                status = if (enabled) "Could not enable live drafts. Try again."
-                    else "Sharing is off on this phone. The relay update will retry when you reopen chat."
-            } finally { consentBusy = false }
-        }
-    }
-
     Column(
         modifier = modifier.fillMaxSize().background(ChatCanvas).imePadding(),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 8.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) { Text("‹", color = ChatForest, fontSize = 34.sp) }
-            Surface(shape = CircleShape, color = OutgoingBubble, modifier = Modifier.size(42.dp)) {
+            Surface(shape = CircleShape, color = FocaaaPalette.Pale, modifier = Modifier.size(44.dp)) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(contactInitials(contactName), color = ChatForest, fontWeight = FontWeight.Bold)
                 }
             }
-            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+            Column(modifier = Modifier.weight(1f).padding(start = 13.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(contactName, color = FocaaaPalette.Ink, style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text("Private conversation", color = FocaaaPalette.Muted, style = MaterialTheme.typography.labelSmall)
+                Text(if (partnerTyping) "typing…" else "Private conversation",
+                    color = if (partnerTyping) ChatForest else FocaaaPalette.Muted,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (partnerTyping) FontWeight.SemiBold else FontWeight.Normal)
             }
             IconButton(onClick = onPrivateSettings) { Text("⋮", color = ChatForest, fontSize = 25.sp) }
-        }
-        if (currentServicePair && !connectionEnded && role == PairingRole.JOINER) {
-            if (draftConsent) {
-                Row(modifier = Modifier.fillMaxWidth().background(Color.White)
-                    .padding(start = 16.dp, end = 12.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = RoundedCornerShape(14.dp),
-                        color = if (sharing) FocaaaPalette.Outgoing else FocaaaPalette.Pale,
-                        modifier = Modifier.clickable(enabled = !consentBusy) {
-                            if (sharing) liveDraft?.pauseSharing()
-                            else if (liveAvailable) liveDraft?.startSharing(draft)
-                        }) {
-                        Text(if (sharing) "Sharing drafts · Pause" else "Drafts paused · Resume",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            color = ChatForest, style = MaterialTheme.typography.labelSmall)
-                    }
-                    TextButton(onClick = { changeDraftConsent(false) }, enabled = !consentBusy) {
-                        Text("Turn off", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-            } else {
-                Row(modifier = Modifier.fillMaxWidth().background(Color.White)
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = legacyConsentChecked, onCheckedChange = { legacyConsentChecked = it },
-                        enabled = !consentBusy)
-                    Text("Share unsent and deleted message edits with the invite creator.",
-                        modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                    TextButton(onClick = { changeDraftConsent(true) },
-                        enabled = legacyConsentChecked && !consentBusy) { Text("Enable") }
-                }
-            }
-        }
-        if (currentServicePair && !connectionEnded && role == PairingRole.INVITER) {
-            Text("Invite creator · only your partner can share live drafts",
-                modifier = Modifier.fillMaxWidth().background(Color.White)
-                    .padding(horizontal = 18.dp, vertical = 7.dp),
-                style = MaterialTheme.typography.labelSmall, color = FocaaaPalette.Muted)
         }
         if (!currentServicePair || connectionEnded) {
             Surface(color = FocaaaPalette.Pale, modifier = Modifier.fillMaxWidth()) {
@@ -411,23 +312,20 @@ fun SecureConversationScreen(
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             if (messages.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                        Card(
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f))
-                        ) {
+                        Surface(shape = RoundedCornerShape(18.dp), color = Color.White) {
                             Column(
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text("Your conversation", color = ChatForest, fontWeight = FontWeight.SemiBold)
-                                Text("Send a message to get started.", color = FocaaaPalette.Muted, style = MaterialTheme.typography.bodySmall)
+                                Text("A quiet place to talk", color = ChatForest, fontWeight = FontWeight.SemiBold)
+                                Text("Messages stay private to this conversation.", color = FocaaaPalette.Muted, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -457,35 +355,12 @@ fun SecureConversationScreen(
             )
         }
 
-        if (role == PairingRole.INVITER && partnerDraft.sharing && currentServicePair && !connectionEnded) {
-            Surface(color = Color.White, modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 5.dp),
-                shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Partner’s live draft", color = ChatForest, style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold)
-                    Text(partnerDraft.text.ifEmpty { "Typing…" }, color = FocaaaPalette.Ink,
-                        style = MaterialTheme.typography.bodyMedium)
-                    if (recentDraftHistory.isNotEmpty()) {
-                        Text("View recent edits", color = ChatForest, style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.clickable { showDraftHistory = true })
-                    }
-                }
-            }
-        }
-        if (!(role == PairingRole.INVITER && partnerDraft.sharing) &&
-            recentDraftHistory.isNotEmpty() && currentServicePair && !connectionEnded) {
-            Text(if (role == PairingRole.JOINER) "View your recent live edits" else "View recent partner edits", color = ChatForest,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.fillMaxWidth().clickable { showDraftHistory = true }
-                    .padding(horizontal = 18.dp, vertical = 5.dp))
-        }
-
         if (currentServicePair && !connectionEnded) Row(
-            modifier = Modifier.fillMaxWidth().background(ChatCanvas).padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.Bottom
         ) {
             Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(26.dp),
-                color = Color.White, shadowElevation = 3.dp) {
+                color = ChatCanvas, shadowElevation = 0.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, end = 14.dp)) {
                     Box {
                         IconButton(onClick = { attachmentMenuOpen = true }, enabled = !busy) {
@@ -502,9 +377,8 @@ fun SecureConversationScreen(
                     }
                     BasicTextField(
                         value = draft, onValueChange = {
-                            val changed = it.take(4000)
-                            liveDraft?.textChanged(changed)
-                            draft = changed
+                            draft = it.take(4000)
+                            typing?.edited(draft.isNotBlank())
                         }, enabled = !busy,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = FocaaaPalette.Ink),
                         cursorBrush = SolidColor(ChatForest), maxLines = 5,
@@ -530,27 +404,6 @@ fun SecureConversationScreen(
             }
         }
     }
-    if (showDraftHistory) AlertDialog(
-        onDismissRequest = { showDraftHistory = false },
-        title = { Text("Recent live draft edits") },
-        text = {
-            LazyColumn(modifier = Modifier.height(320.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                itemsIndexed(recentDraftHistory.takeLast(100).reversed()) { _, edit ->
-                    Column {
-                        Text((if (edit.direction == "LOCAL") "You · " else "Partner · ") +
-                            java.time.Instant.ofEpochMilli(edit.atMillis)
-                                .atZone(java.time.ZoneId.systemDefault()).toLocalTime().toString(),
-                            style = MaterialTheme.typography.labelSmall, color = FocaaaPalette.Muted)
-                        if (edit.removed.isNotEmpty()) Text("Deleted: ${edit.removed}",
-                            style = MaterialTheme.typography.bodySmall, color = FocaaaPalette.Ink)
-                        if (edit.inserted.isNotEmpty()) Text("Added: ${edit.inserted}",
-                            style = MaterialTheme.typography.bodySmall, color = FocaaaPalette.Ink)
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = { showDraftHistory = false }) { Text("Close") } }
-    )
     deleteTarget?.let { selected ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },

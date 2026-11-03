@@ -7,7 +7,7 @@ import {
 } from './pairing.ts';
 import { sendEnvelope, fetchPendingEnvelopes, acknowledgeEnvelopes, markRead, fetchMessageStatuses, revokeDevice, purgeExpired } from './messages.ts';
 import { beginMediaUpload, uploadMediaChunk, completeMediaUpload, fetchMediaManifest, fetchMediaChunk, cancelMediaUpload } from './media.ts';
-import { closeLiveDraftRoom, connectLiveDraft, setLiveDraftConsent, LiveDraftRoom } from './live-draft.ts';
+import { closeTypingRoom, connectTyping, LiveDraftRoom } from './typing.ts';
 export { LiveDraftRoom };
 
 type Authenticator = (request: Request, env: Env) => Promise<string>;
@@ -51,10 +51,10 @@ export function createRelayHandler(dependencies: { authenticate: Authenticator; 
     try {
       const url = new URL(request.url);
       if (url.pathname === '/health' && request.method === 'GET') return json({ service: 'focaaa-relay', status: 'ok' });
-      if (url.pathname === '/v1/liveDraft' && request.method === 'GET') {
+      if (url.pathname === '/v1/typing' && request.method === 'GET') {
         if (!env.DB || !env.FIREBASE_PROJECT_ID) fail(503, 'unavailable', 'Relay configuration is incomplete.');
         const uid = await dependencies.authenticate(request, env);
-        return await connectLiveDraft(request, env, uid);
+        return await connectTyping(request, env, uid);
       }
       if (request.method !== 'POST' || !url.pathname.startsWith('/v1/')) {
         fail(404, 'not-found', 'Unknown relay operation.');
@@ -73,19 +73,11 @@ export function createRelayHandler(dependencies: { authenticate: Authenticator; 
         case 'publishPairingWelcome': result = await publishPairingWelcome(env, uid, data, now); break;
         case 'fetchPairingWelcome': result = await fetchPairingWelcome(env, uid, data, now); break;
         case 'confirmPairing': result = await confirmPairing(env, uid, data, now); break;
-        case 'setLiveDraftConsent': {
-          result = await setLiveDraftConsent(env, uid, data, now);
-          if (!(result as { enabled: boolean }).enabled) {
-            try { await closeLiveDraftRoom(env, data.conversationId as string); }
-            catch { /* Every subsequent frame rechecks the withdrawn consent. */ }
-          }
-          break;
-        }
         case 'revokePairing': {
           result = await revokePairing(env, uid, data, now);
           const pairId = data.conversationId;
           if (typeof pairId === 'string') {
-            try { await closeLiveDraftRoom(env, pairId); }
+            try { await closeTypingRoom(env, pairId); }
             catch { /* Pair revocation is durable; sockets recheck membership on every frame. */ }
           }
           break;

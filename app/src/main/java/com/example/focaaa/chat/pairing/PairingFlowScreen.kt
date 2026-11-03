@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -55,7 +53,6 @@ fun PairingFlowScreen(
     var busy by remember { mutableStateOf(false) }
     var remoteCancelFailed by remember { mutableStateOf(false) }
     var showLocalRemovalWarning by remember { mutableStateOf(false) }
-    var liveDraftConsentChecked by remember { mutableStateOf(false) }
 
     LaunchedEffect(coordinator) {
         val saved = coordinator.currentSession()
@@ -143,25 +140,9 @@ fun PairingFlowScreen(
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Checkbox(checked = liveDraftConsentChecked,
-                        onCheckedChange = { liveDraftConsentChecked = it }, enabled = !busy)
-                    Text("I agree to share my live typing, edits and deleted text with the invite creator.",
-                        modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW,
-                        Uri.parse("https://focaaa-download.focaaa-free-relay.workers.dev/privacy.html"))) }) {
-                        Text("Privacy policy")
-                    }
-                    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW,
-                        Uri.parse("https://focaaa-download.focaaa-free-relay.workers.dev/terms.html"))) }) {
-                        Text("Terms")
-                    }
-                }
                 Button(
-                    onClick = { run { coordinator.joinInvite(inviteText.trim(), liveDraftConsentChecked) } },
-                    enabled = !busy && inviteText.length == 32 && liveDraftConsentChecked,
+                    onClick = { run { coordinator.joinInvite(inviteText.trim()) } },
+                    enabled = !busy && inviteText.length == 32,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Join invite") }
             }

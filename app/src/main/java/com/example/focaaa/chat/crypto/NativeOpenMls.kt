@@ -10,7 +10,6 @@ class NativeOpenMls {
     external fun addMemberNative(snapshot: ByteArray, keyPackage: ByteArray): ByteArray
     external fun joinGroupNative(snapshot: ByteArray, welcome: ByteArray, ratchetTree: ByteArray): ByteArray
     external fun fingerprintNative(snapshot: ByteArray): ByteArray
-    external fun liveDraftKeyNative(snapshot: ByteArray): ByteArray
     external fun encryptNative(snapshot: ByteArray, plaintext: ByteArray): ByteArray
     external fun rotateGroupStateNative(snapshot: ByteArray): ByteArray
     external fun removePeerNative(snapshot: ByteArray, peerCredential: ByteArray): ByteArray

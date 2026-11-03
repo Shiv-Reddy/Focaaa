@@ -25,7 +25,7 @@
             <a class="download" href="{{APK_FILENAME}}" download><span class="download-icon" aria-hidden="true">↓</span><span>Download for Android</span></a>
             <span class="download-meta">Version {{VERSION}}<br>{{APK_SIZE}} MiB · Android 8+</span>
           </div>
-          <p class="preview-note">Version {{VERSION}} supports online pairing for direct APK installs and includes consent-based one-way live drafts. Install it over your existing copy to keep local data.</p>
+          <p class="preview-note">Version {{VERSION}} returns to simple private chat, with a temporary typing indicator and no sharing of unsent text. Install over your existing copy to keep your conversations.</p>
         </div>
         <div class="focus-stage" id="the-app" aria-label="Illustration of Focaaa's focus timer and task list">
           <div class="stage-top"><span>Focaaa / Today</span><span class="stage-date">A little at a time.</span></div>
@@ -46,9 +46,8 @@
       </section>
       <section class="install" id="install" aria-labelledby="install-title">
         <div class="install-main"><p class="section-kicker">Direct download</p><h2 id="install-title">Download the current build</h2><p>Install the signed APK from your phone’s browser. Android may ask you to allow installation from that browser. Updating over an existing Focaaa installation keeps its local data.</p>
-          <div class="version-choice"><span class="version-tag">Current · early access</span><strong>Focaaa {{VERSION}}</strong><p>This build uses an Android App Check key configured for direct downloads. The invite participant checks a short consent box before joining; only their unsent and deleted edits can appear for the invite creator. Sharing starts automatically when that participant opens the private chat. They can stop sharing without losing the chat.</p><a class="install-link" href="{{APK_FILENAME}}" download>Download {{VERSION}} <span aria-hidden="true">↗</span></a><small>{{APK_SIZE}} MiB · SHA-256 <code>{{SHA256}}</code></small></div>
-          <div class="version-choice"><span class="version-tag">Previous online build</span><strong>Focaaa 1.8.2</strong><p>The same direct-download App Check setup, with the longer consent explanation on the Join invite screen. Online pairing and chat remain supported.</p><a class="install-link" href="{{PREVIOUS_ONLINE_APK_FILENAME}}" download>Download 1.8.2 <span aria-hidden="true">↗</span></a><small>{{PREVIOUS_ONLINE_APK_SIZE}} MiB · SHA-256 <code>{{PREVIOUS_ONLINE_SHA256}}</code></small></div>
-          <p class="archive-note">Versions before 1.8.2 are kept for reference. Their old App Check key cannot authenticate to the current online pairing and chat service. For online use, install {{VERSION}} without clearing app data. Archives: <a href="{{PRIOR_PATCH_APK_FILENAME}}" download>1.8.1</a>, <a href="{{SUPERSEDED_APK_FILENAME}}" download>1.8</a>, <a href="{{LEGACY_APK_FILENAME}}" download>1.7</a>, and <a href="{{PREVIOUS_APK_FILENAME}}" download>1.6</a>.</p>
+          <div class="version-choice"><span class="version-tag">Current · early access</span><strong>Focaaa {{VERSION}}</strong><p>Simple private messages, photos and short videos, plus a content-free typing indicator while chat is open. The earlier live-draft feature is removed. Updating preserves current messages and pairings while deleting the old local draft-edit history.</p><a class="install-link" href="{{APK_FILENAME}}" download>Download {{VERSION}} <span aria-hidden="true">↗</span></a><small>{{APK_SIZE}} MiB · SHA-256 <code>{{SHA256}}</code></small></div>
+          <p class="archive-note">For online use, install the current build. Older draft-enabled versions have been withdrawn from this download page; versions before 1.8.2 also have an obsolete App Check key.</p>
         </div>
         <div class="install-proof"><span class="proof-label">Verify your download</span><p>The checksum file lists all available APKs. Compare the SHA-256 for the version you downloaded before installing.</p><a href="SHA256SUMS.txt">Download checksum file</a></div>
       </section>

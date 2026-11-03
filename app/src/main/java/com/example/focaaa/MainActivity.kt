@@ -863,7 +863,7 @@ private fun PrivacyLimitsScreen(
                     PrivacyLimit("A new private message may trigger a generic focus reminder with no contact name or message text.")
                     PrivacyLimit("Someone with access to your phone may still discover or open the app.")
                     PrivacyLimit("Private messages are saved on this phone. Encrypted relay copies of new media expire after seven days; downloaded media stays on each phone until deleted. The manual encrypted history backup includes messages but not photo or video files. A replacement phone needs a new pairing.")
-                    PrivacyLimit("For new invites, the joining person must explicitly check a live-draft sharing box. The invite creator can see that person's unsent and deleted message-box edits for up to 24 hours; the creator's drafts are not shared. Sharing can be paused or turned off in chat.")
+                    PrivacyLimit("While both private chats are open, your partner may see a temporary typing indicator. No draft text, deleted text, or typing history is shared.")
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

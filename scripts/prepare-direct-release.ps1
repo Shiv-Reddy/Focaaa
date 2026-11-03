@@ -244,6 +244,21 @@ Copy-Item -LiteralPath (Join-Path $source '.assetsignore') -Destination $stage
 [System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), "$hash  $apkName`n$previousOnlineHash  $previousOnlineApkName`n$priorPatchHash  $priorPatchApkName`n$supersededHash  $supersededApkName`n$legacyHash  $legacyApkName`n$previousHash  $previousApkName`n", $utf8)
 $manifest = [ordered]@{ packageName = $packageName; versionCode = $versionCode; versionName = $versionName; apk = $apkName; sha256 = $hash; previousOnlineApk = $previousOnlineApkName; previousOnlineSha256 = $previousOnlineHash; priorPatchApk = $priorPatchApkName; priorPatchSha256 = $priorPatchHash; supersededApk = $supersededApkName; supersededSha256 = $supersededHash; legacyApk = $legacyApkName; legacySha256 = $legacyHash; previousApk = $previousApkName; previousSha256 = $previousHash; certificateSha256 = $certificateSha; firebaseAppId = $firebaseAppId; appCheckProvider = 'recaptchaEnterprise'; appCheckDirectDistribution = $true; relayUrl = $relayUrl; earlyAccess = $EarlyAccess.IsPresent; deviceTested = $DeviceTested.IsPresent }
 [System.IO.File]::WriteAllText((Join-Path $stage 'release.json'), ($manifest | ConvertTo-Json) + "`n", $utf8)
+# Retired draft-enabled builds must not be offered by the new download deployment.
+@($previousApkName, $legacyApkName, $supersededApkName, $priorPatchApkName, $previousOnlineApkName) |
+    ForEach-Object { Remove-Item -LiteralPath (Join-Path $stage $_) }
+[System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), "$hash  $apkName`n", $utf8)
+$manifest.Remove('previousOnlineApk')
+$manifest.Remove('previousOnlineSha256')
+$manifest.Remove('priorPatchApk')
+$manifest.Remove('priorPatchSha256')
+$manifest.Remove('supersededApk')
+$manifest.Remove('supersededSha256')
+$manifest.Remove('legacyApk')
+$manifest.Remove('legacySha256')
+$manifest.Remove('previousApk')
+$manifest.Remove('previousSha256')
+[System.IO.File]::WriteAllText((Join-Path $stage 'release.json'), ($manifest | ConvertTo-Json) + "`n", $utf8)
 Write-Output "Staged $releaseStatus`: $stage"
 Write-Output "APK SHA-256: $hash"
 Write-Output "Signing certificate SHA-256: $certificateSha"

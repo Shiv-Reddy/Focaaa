@@ -125,18 +125,6 @@ class OpenMlsCryptoProvider(
             }
         }
 
-    /** Separate epoch key for optional, ephemeral live drafts; never stored or logged. */
-    suspend fun exportLiveDraftKey(group: CryptoGroupHandle): Pair<ByteArray, Long> {
-        check(canSend(group)) { "Both partners must confirm pairing before sharing a draft." }
-        return withSnapshot(group.value) { snapshot ->
-            val fields = NativeOpenMls.decodeResult(native.liveDraftKeyNative(snapshot), 2)
-            try {
-                require(fields[0].size == 32 && fields[1].size == Long.SIZE_BYTES)
-                fields[0].copyOf() to fields[1].asLong()
-            } finally { fields.forEach { it.fill(0) } }
-        }
-    }
-
     /** Returns the other MLS member's canonical credential only after validating the pair has two members. */
     suspend fun peerIdentity(group: CryptoGroupHandle): CryptoPeerIdentity =
         withSnapshot(group.value) { snapshot ->

@@ -101,7 +101,6 @@ export interface PairRow {
   welcome_expires_at_ms: number | null;
   owner_confirmed: number;
   joiner_confirmed: number;
-  live_draft_consent: number;
 }
 
 export async function requirePair(db: D1Database, uid: string, pairId: string, active = false): Promise<PairRow> {
